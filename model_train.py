@@ -10,10 +10,18 @@ Usage:
 Expected runtime: ~5–10 minutes depending on hardware.
 """
 
+from xml.parsers.expat import model
+import sys
+import io
+
 import numpy as np
 import pandas as pd
 import warnings, os, json, time
 warnings.filterwarnings('ignore')
+
+# Fix Unicode encoding on Windows
+if sys.stdout.encoding != 'utf-8':
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 import sklearn
 import joblib
@@ -27,6 +35,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from xgboost import XGBClassifier
+from lightgbm import LGBMClassifier
 from imblearn.pipeline import Pipeline as ImbPipeline
 from imblearn.over_sampling import SMOTE
 from sklearn.model_selection import (
@@ -230,7 +239,9 @@ def save_bundle(model, display_name, fname, threshold):
         'threshold': threshold,
     }
     path = f'models/{fname}.pkl'
-    joblib.dump(bundle, path)
+    joblib.dump(bundle, path, compress=3)
+    
+    #joblib.dump(model, "model.pkl", compress=3)
     size_kb = os.path.getsize(path) / 1024
     auc_v = roc_auc_score(y_test, te_prob)
     f1_v  = f1_score(y_test, te_pred, zero_division=0)
@@ -257,7 +268,7 @@ print("\n[3/5] Training baseline models ...")
 baseline_models = {
     'Baseline — Logistic Regression': Pipeline([
         ('prep',  linear_preprocessor),
-        ('model', LogisticRegression(max_iter=1000, random_state=42))
+        ('model', LogisticRegression(max_iter=500, random_state=42))
     ]),
     'Baseline — Decision Tree': Pipeline([
         ('prep',  tree_preprocessor),
@@ -265,7 +276,7 @@ baseline_models = {
     ]),
     'Baseline — Random Forest': Pipeline([
         ('prep',  tree_preprocessor),
-        ('model', RandomForestClassifier(n_estimators=200, random_state=42, n_jobs=-1))
+        ('model', RandomForestClassifier(n_estimators=20, random_state=42, n_jobs=-1))
     ]),
     'Baseline — Gradient Boosting': Pipeline([
         ('prep',  tree_preprocessor),
@@ -273,9 +284,14 @@ baseline_models = {
     ]),
     'Baseline — XGBoost': Pipeline([
         ('prep',  tree_preprocessor),
-        ('model', XGBClassifier(n_estimators=300, learning_rate=0.05,
+        ('model', XGBClassifier(n_estimators=100, learning_rate=0.05,
                                 max_depth=5, subsample=0.8, colsample_bytree=0.8,
                                 eval_metric='logloss', random_state=42, verbosity=0))
+    ]),
+    'Baseline — LightGBM': Pipeline([
+        ('prep',  tree_preprocessor),
+        ('model', LGBMClassifier(n_estimators=100, max_depth=5, learning_rate=0.1,
+                                 random_state=42, verbosity=-1))
     ]),
 }
 
@@ -298,12 +314,18 @@ smote_models = {
     'SMOTE — Random Forest': ImbPipeline([
         ('prep',  tree_preprocessor),
         ('smote', SMOTE(sampling_strategy=0.5, random_state=42)),
-        ('model', RandomForestClassifier(n_estimators=200, random_state=42, n_jobs=-1))
+        ('model', RandomForestClassifier(n_estimators=20, random_state=42, n_jobs=-1))
     ]),
     'SMOTE — XGBoost': ImbPipeline([
         ('prep',  tree_preprocessor),
         ('smote', SMOTE(sampling_strategy=0.5, random_state=42)),
         ('model', XGBClassifier(eval_metric='logloss', random_state=42, verbosity=0))
+    ]),
+    'SMOTE — LightGBM': ImbPipeline([
+        ('prep',  tree_preprocessor),
+        ('smote', SMOTE(sampling_strategy=0.5, random_state=42)),
+        ('model', LGBMClassifier(n_estimators=100, max_depth=5, learning_rate=0.1,
+                                 random_state=42, verbosity=-1))
     ]),
 }
 weight_models = {
@@ -313,13 +335,19 @@ weight_models = {
     ]),
     'Weight — Random Forest': Pipeline([
         ('prep',  tree_preprocessor),
-        ('model', RandomForestClassifier(n_estimators=200, class_weight='balanced',
+        ('model', RandomForestClassifier(n_estimators=20, class_weight='balanced',
                                          random_state=42, n_jobs=-1))
     ]),
     'Weight — XGBoost': Pipeline([
         ('prep',  tree_preprocessor),
         ('model', XGBClassifier(scale_pos_weight=scale_pos_weight,
                                 eval_metric='logloss', random_state=42, verbosity=0))
+    ]),
+    'Weight — LightGBM': Pipeline([
+        ('prep',  tree_preprocessor),
+        ('model', LGBMClassifier(scale_pos_weight=scale_pos_weight,
+                                 n_estimators=100, max_depth=5, learning_rate=0.1,
+                                 random_state=42, verbosity=-1))
     ]),
 }
 
@@ -395,8 +423,48 @@ for name, model in [('Tuned SMOTE XGBoost', best_smote_xgb),
         'Recall':         round(recall_score(y_test, te_pred,    zero_division=0), 4),
     })
 
-results_json['Tuned SMOTE XGB']  = save_bundle(best_smote_xgb,  'Tuned SMOTE XGB',  'tuned_smote_xgb',  threshold=0.3)
-results_json['Tuned Weight XGB'] = save_bundle(best_weight_xgb, 'Tuned Weight XGB', 'tuned_weight_xgb', threshold=0.3)
+results_json['Tuned SMOTE XGBoost']  = save_bundle(best_smote_xgb,  'Tuned SMOTE XGBoost',  'tuned_smote_xgb',  threshold=0.3)
+results_json['Tuned Weight XGBoost'] = save_bundle(best_weight_xgb, 'Tuned Weight XGBoost', 'tuned_weight_xgb', threshold=0.3)
+
+# ── Tuned LightGBM ────────────────────────────────────────────────────────────
+print("\n  Tuning SMOTE + LightGBM (RandomizedSearchCV, 20 iters) ...")
+
+smote_lgbm_pipe = ImbPipeline([
+    ('prep',  tree_preprocessor),
+    ('smote', SMOTE(random_state=42)),
+    ('model', LGBMClassifier(random_state=42, verbosity=-1))
+])
+param_dist_lgbm = {
+    'smote__sampling_strategy': [0.3, 0.4, 0.5, 0.6, 0.8],
+    'model__n_estimators':      [100, 200, 300, 500],
+    'model__max_depth':         [3, 5, 7, -1],
+    'model__learning_rate':     [0.01, 0.05, 0.1],
+    'model__subsample':         [0.6, 0.7, 0.8, 1.0],
+    'model__colsample_bytree':  [0.6, 0.7, 0.8, 1.0],
+    'model__num_leaves':        [31, 63, 127],
+}
+search_lgbm = RandomizedSearchCV(
+    smote_lgbm_pipe, param_dist_lgbm,
+    n_iter=20, scoring='f1', cv=cv, n_jobs=-1, random_state=42, verbose=0
+)
+search_lgbm.fit(X_train, y_train)
+best_lgbm = search_lgbm.best_estimator_
+print(f"  ✅ Best SMOTE LightGBM CV F1: {search_lgbm.best_score_:.4f}")
+
+te_prob_lgbm = best_lgbm.predict_proba(X_test)[:, 1]
+te_pred_lgbm = (te_prob_lgbm >= 0.3).astype(int)
+tr_prob_lgbm = best_lgbm.predict_proba(X_train)[:, 1]
+tr_pred_lgbm = (tr_prob_lgbm >= 0.3).astype(int)
+tuned_rows.append({
+    'Model': 'Tuned SMOTE LightGBM', 'Group': '3. Tuned',
+    'Train Accuracy': round(accuracy_score(y_train, tr_pred_lgbm), 4),
+    'Test Accuracy':  round(accuracy_score(y_test,  te_pred_lgbm), 4),
+    'AUC':            round(roc_auc_score(y_test,   te_prob_lgbm), 4),
+    'F1 Score':       round(f1_score(y_test, te_pred_lgbm,        zero_division=0), 4),
+    'Precision':      round(precision_score(y_test, te_pred_lgbm, zero_division=0), 4),
+    'Recall':         round(recall_score(y_test, te_pred_lgbm,    zero_division=0), 4),
+})
+results_json['Tuned SMOTE LightGBM'] = save_bundle(best_lgbm, 'Tuned SMOTE LightGBM', 'tuned_smote_lgbm', threshold=0.3)
 
 # ── 5. Save summary files ────────────────────────────────────────────────────
 print("\n[5/5] Saving summary files ...")
