@@ -2,61 +2,15 @@
 CreditLens — Credit Risk Intelligence Platform
 ================================================
 Streamlit UI — loads pre-trained PKL models only.
-Models are downloaded from Google Drive at startup if not present locally.
+Run model_train.py first to generate models/
 """
-
-import os
-import zipfile
-
-# ══════════════════════════════════════════════════════════════════════════════
-# DOWNLOAD MODELS FROM GOOGLE DRIVE (runs once at startup)
-# ══════════════════════════════════════════════════════════════════════════════
-MODELS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'models')
-ZIP_PATH   = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'models.zip')
-# Your Google Drive file ID extracted from the share link
-GDRIVE_FILE_ID = "1i8y8KJdHxYHCRcRdxxcPlvexdH92Ak4W"
-
-def download_models_if_needed():
-    """Download and extract models.zip from Google Drive if models/ folder is missing."""
-    if os.path.exists(MODELS_DIR) and len(os.listdir(MODELS_DIR)) > 0:
-        return  # Already downloaded
-
-    try:
-        import gdown
-    except ImportError:
-        import subprocess, sys
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "gdown", "-q"])
-        import gdown
-
-    print("📥 Downloading models from Google Drive...")
-    gdown.download(
-        f"https://drive.google.com/uc?id={GDRIVE_FILE_ID}",
-        ZIP_PATH,
-        quiet=False
-    )
-
-    print("📦 Extracting models.zip...")
-    with zipfile.ZipFile(ZIP_PATH, 'r') as zf:
-        zf.extractall(os.path.dirname(os.path.abspath(__file__)))
-
-    # Clean up zip after extraction
-    if os.path.exists(ZIP_PATH):
-        os.remove(ZIP_PATH)
-
-    print("✅ Models ready.")
-
-download_models_if_needed()
-
-# ══════════════════════════════════════════════════════════════════════════════
-# REST OF APP (unchanged)
-# ══════════════════════════════════════════════════════════════════════════════
 
 import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
-import joblib, json, warnings
+import joblib, json, warnings, os
 import sklearn
 warnings.filterwarnings('ignore')
 
@@ -94,11 +48,16 @@ html, body {
     font-family: 'Inter', sans-serif !important;
     background-color: #0D1117 !important;
 }
+/* Only set font on css-scoped divs — do NOT inherit color here;
+   Streamlit's var(--text) resolution can override explicit white labels */
 [class*="css"] {
     font-family: 'Inter', sans-serif !important;
 }
 .stApp { background-color: #0D1117 !important; }
 
+/* ── Widget labels (number inputs, sliders, selects, etc.) ── */
+/* Target every Streamlit widget label directly so the html/body
+   inheritance chain cannot win over var(--text) */
 [data-testid="stWidgetLabel"],
 [data-testid="stWidgetLabel"] p,
 [data-testid="stWidgetLabel"] span,
@@ -119,10 +78,12 @@ div[data-baseweb="form-control"] p {
 }
 .main .block-container { padding: 2rem 2.5rem 3rem; max-width: 1400px; }
 
+/* ── Sidebar ── */
 [data-testid="stSidebar"] {
     background: linear-gradient(180deg, #0D1117 0%, #0A0F1A 100%) !important;
     border-right: 1px solid #30363D !important;
 }
+/* Sidebar radio — brighter visible text */
 [data-testid="stSidebar"] .stRadio > div > label {
     color: #CDD5E0 !important;
     font-size: 14px !important;
@@ -132,11 +93,13 @@ div[data-baseweb="form-control"] p {
 [data-testid="stSidebar"] .stRadio > div > label:hover {
     color: #E6EDF3 !important;
 }
+/* Selected radio item */
 [data-testid="stSidebar"] .stRadio [aria-checked="true"] + div label,
 [data-testid="stSidebar"] .stRadio [data-baseweb="radio"] input:checked ~ div label {
     color: #00D4AA !important;
     font-weight: 600 !important;
 }
+/* Radio button circle */
 [data-testid="stSidebar"] [data-baseweb="radio"] div[data-checked="true"] div {
     border-color: #00D4AA !important;
     background: #00D4AA !important;
@@ -144,6 +107,7 @@ div[data-baseweb="form-control"] p {
 [data-testid="stSidebar"] [data-baseweb="radio"] div div {
     border-color: #A8B4C0 !important;
 }
+/* Sidebar general text */
 [data-testid="stSidebar"] p,
 [data-testid="stSidebar"] span,
 [data-testid="stSidebar"] div {
@@ -153,6 +117,7 @@ div[data-baseweb="form-control"] p {
     color: #E6EDF3 !important;
 }
 
+/* ── Metrics ── */
 [data-testid="metric-container"] {
     background: #161B22 !important;
     border: 1px solid #30363D !important;
@@ -172,6 +137,7 @@ div[data-baseweb="form-control"] p {
 }
 [data-testid="metric-container"] [data-testid="stMetricDelta"] { font-size: 12px !important; }
 
+/* ── Cards ── */
 .card {
     background: #161B22;
     border: 1px solid #30363D;
@@ -187,6 +153,7 @@ div[data-baseweb="form-control"] p {
     margin-bottom: 16px;
 }
 
+/* ── Typography ── */
 .hero-title {
     font-family: 'Playfair Display', serif;
     font-size: 52px;
@@ -285,6 +252,7 @@ div[data-baseweb="form-control"] p {
     font-size: 14px; color: #F0B8B4; margin: 12px 0; line-height: 1.6;
 }
 
+/* ── Tabs ── */
 .stTabs [data-baseweb="tab-list"] {
     background: #161B22 !important; border-radius: 10px !important;
     padding: 4px !important; border: 1px solid #30363D !important; gap: 4px !important;
@@ -299,6 +267,7 @@ div[data-baseweb="form-control"] p {
 }
 .stTabs [data-baseweb="tab-panel"] { padding-top: 20px !important; }
 
+/* ── Buttons ── */
 .stButton > button {
     background: linear-gradient(135deg, #00D4AA, #0097A7) !important;
     color: #0D1117 !important; border: none !important;
@@ -308,6 +277,7 @@ div[data-baseweb="form-control"] p {
 }
 .stButton > button:hover { opacity: 0.9 !important; transform: translateY(-1px) !important; }
 
+/* ── Form elements ── */
 .stSelectbox [data-baseweb="select"] {
     background: #161B22 !important; border: 1px solid #30363D !important;
     border-radius: 8px !important; color: #E6EDF3 !important;
@@ -316,6 +286,7 @@ div[data-baseweb="form-control"] p {
     background: #161B22 !important; border: 1px solid #30363D !important;
     color: #E6EDF3 !important; border-radius: 8px !important;
 }
+/* Stepper +/− buttons */
 .stNumberInput button {
     background: #1C2128 !important; border-color: #30363D !important;
     color: #E6EDF3 !important;
@@ -323,6 +294,7 @@ div[data-baseweb="form-control"] p {
 .stNumberInput button:hover {
     background: #30363D !important; color: #FFFFFF !important;
 }
+/* Slider current-value label */
 [data-testid="stSlider"] [data-testid="stTickBarMin"],
 [data-testid="stSlider"] [data-testid="stTickBarMax"],
 [data-testid="stSlider"] .st-emotion-cache-1vzeuhh,
@@ -354,14 +326,20 @@ PT = dict(
     xaxis=dict(gridcolor='#30363D', linecolor='#30363D', zerolinecolor='#30363D'),
     yaxis=dict(gridcolor='#30363D', linecolor='#30363D', zerolinecolor='#30363D'),
 )
+# margin is intentionally excluded from PT — every update_layout() call passes its own
 COLORS_MODEL = ['#00D4AA', '#4DB8FF', '#F5A623', '#BC8CFF']
 
 def L(x):
+    """Convert any array-like to a plain Python list so Plotly never receives
+    numpy arrays or pandas Series (which newer Plotly serializes as binary
+    bdata dicts, causing 'undefined' values in the browser chart)."""
     if hasattr(x, 'tolist'):
         return x.tolist()
     return list(x)
 
 def pxdf(df_in):
+    """Return a copy of a DataFrame with all numeric columns cast to Python float
+    so Plotly Express never serializes them as binary bdata arrays."""
     d = df_in.copy()
     for col in d.select_dtypes(include='number').columns:
         d[col] = d[col].astype(float)
@@ -375,38 +353,76 @@ def pxdf(df_in):
 # ══════════════════════════════════════════════════════════════════════════════
 @st.cache_data
 def load_data():
+    """
+    Load Credit_Card_Default.csv and perform preprocessing.
+    
+    Returns:
+        pd.DataFrame: Preprocessed dataset with 30,000 rows and enhanced columns
+        
+    Columns Added:
+        - SEX_LABEL: Human-readable gender labels
+        - EDU_LABEL: Human-readable education labels
+        - MAR_LABEL: Human-readable marriage labels
+        - DEFAULT_LABEL: Human-readable default labels
+        - UTIL_RATE: Credit utilization rate (0-2)
+        - AVG_PAY_STATUS: Average payment delay across 6 months
+        - TOTAL_BILL: Sum of all 6 bill amounts
+        - TOTAL_PAY: Sum of all 6 payment amounts
+        - PAY_RATIO: Payment to bill ratio (0-5)
+        - AGE_GROUP: Categorical age bins
+    """
     try:
         base = os.path.dirname(os.path.abspath(__file__))
         csv_path = os.path.join(base, 'Credit_Card_Default.csv')
+        
+        # Read CSV file
         df = pd.read_csv(csv_path)
+        
+        # Rename columns
         df = df.rename(columns={
             'default.payment.next.month': 'DEFAULT',
             'SEX': 'GENDER'
         })
+        
+        # Drop ID column
         if 'ID' in df.columns:
             df = df.drop(columns=['ID'])
+        
+        # Create human-readable labels for categorical features
         df['SEX_LABEL'] = df['GENDER'].map({1: 'Male', 2: 'Female'})
         df['EDU_LABEL'] = df['EDUCATION'].map({
-            1: 'Graduate School', 2: 'University',
-            3: 'High School', 4: 'Others', 5: 'Unknown', 6: 'Unknown'
+            1: 'Graduate School',
+            2: 'University',
+            3: 'High School',
+            4: 'Others',
+            5: 'Unknown',
+            6: 'Unknown'
         }).fillna('Others')
         df['MAR_LABEL'] = df['MARRIAGE'].map({
-            1: 'Married', 2: 'Single', 3: 'Others'
+            1: 'Married',
+            2: 'Single',
+            3: 'Others'
         }).fillna('Others')
         df['DEFAULT_LABEL'] = df['DEFAULT'].map({0: 'No Default', 1: 'Default'})
+        
+        # Calculate derived features with error handling for division by zero
         df['UTIL_RATE'] = (df['BILL_AMT1'] / df['LIMIT_BAL'].replace(0, np.nan)).clip(0, 2).fillna(0)
         df['AVG_PAY_STATUS'] = df[['PAY_0', 'PAY_2', 'PAY_3', 'PAY_4', 'PAY_5', 'PAY_6']].mean(axis=1)
         df['TOTAL_BILL'] = df[['BILL_AMT1', 'BILL_AMT2', 'BILL_AMT3', 'BILL_AMT4', 'BILL_AMT5', 'BILL_AMT6']].sum(axis=1)
         df['TOTAL_PAY'] = df[['PAY_AMT1', 'PAY_AMT2', 'PAY_AMT3', 'PAY_AMT4', 'PAY_AMT5', 'PAY_AMT6']].sum(axis=1)
         df['PAY_RATIO'] = (df['TOTAL_PAY'] / df['TOTAL_BILL'].replace(0, np.nan)).clip(0, 5).fillna(0)
+        
+        # Create age group bins
         df['AGE_GROUP'] = pd.cut(
             df['AGE'],
             bins=[20, 25, 30, 35, 40, 45, 50, 60, 80],
             labels=['21-25', '26-30', '31-35', '36-40', '41-45', '46-50', '51-60', '60+']
         )
+        
         return df
+        
     except FileNotFoundError:
-        st.error(f"⚠️ Dataset file not found. Expected: Credit_Card_Default.csv")
+        st.error(f"⚠️ Dataset file not found. Expected: {csv_path}")
         st.info("Please ensure Credit_Card_Default.csv is in the same directory as app.py")
         st.stop()
     except Exception as e:
@@ -414,113 +430,309 @@ def load_data():
         st.stop()
 
 def display_version_mismatch_guidance(expected_version, current_version):
+    """
+    Display structured error panel with version mismatch information and resolution guidance.
+    
+    This function creates a user-friendly error display using Streamlit components to guide
+    users through resolving sklearn version mismatches. It presents two clear resolution paths:
+    installing the compatible sklearn version or retraining models with the current version.
+    
+    Args:
+        expected_version (str): The sklearn version used to train the models (e.g., "1.2.0")
+        current_version (str): The currently installed sklearn version (e.g., "1.3.0")
+        
+    Returns:
+        None: Displays error panel directly in Streamlit UI
+        
+    Examples:
+        >>> display_version_mismatch_guidance("1.2.0", "1.3.0")
+        # Displays error panel with version comparison and resolution options
+        
+    Notes:
+        - Uses st.error() for the main alert message
+        - Uses st.columns() to display version comparison side-by-side
+        - Uses st.expander() for detailed resolution steps
+        - Provides copy-pasteable commands for both resolution paths
+        - Validates: Requirements 2.2, 2.3
+    """
+    # Main error alert
     st.error("⚠️ Sklearn Version Mismatch Detected")
+    
+    # Display version comparison using columns for side-by-side view
     col1, col2 = st.columns(2)
     with col1:
         st.metric("Models Trained With", f"sklearn {expected_version}")
     with col2:
         st.metric("Currently Installed", f"sklearn {current_version}")
+    
+    # Resolution guidance header
     st.info("**Resolution Options:**")
+    
+    # Option 1: Install compatible sklearn version (recommended)
     with st.expander("✅ Option 1: Install Compatible Sklearn Version (Recommended)", expanded=True):
         st.markdown("This will allow you to use the existing trained models immediately without retraining.")
         st.code(f"pip install scikit-learn=={expected_version}", language="bash")
-        st.markdown("**Steps:** 1. Run the command above  2. Restart the Streamlit app  3. Models should load successfully")
+        st.markdown("**Steps:**")
+        st.markdown(f"1. Copy the command above")
+        st.markdown(f"2. Run it in your terminal or command prompt")
+        st.markdown(f"3. Restart the Streamlit app")
+        st.markdown(f"4. Models should load successfully")
+    
+    # Option 2: Retrain models with current version
     with st.expander("🔄 Option 2: Retrain Models with Current Version"):
-        st.markdown(f"Retrain with sklearn {current_version} by running:")
-        st.code("python model_train.py", language="bash")
+        st.markdown(f"If you prefer to use the current sklearn version ({current_version}), you can retrain the models.")
+        st.markdown("**⚠️ Warning:** This may take several minutes and will overwrite existing model files.")
+        
+        # Check if training script exists
+        if os.path.exists("model_train.py"):
+            st.code("python model_train.py", language="bash")
+            st.markdown("**Steps:**")
+            st.markdown("1. Copy the command above")
+            st.markdown("2. Run it in your terminal (this will take several minutes)")
+            st.markdown("3. Wait for training to complete")
+            st.markdown("4. Restart the Streamlit app")
+        elif os.path.exists("CreditLens_Final.ipynb"):
+            st.markdown("**Steps:**")
+            st.markdown("1. Open `CreditLens_Final.ipynb` in Jupyter Notebook")
+            st.markdown("2. Run all cells to retrain the models")
+            st.markdown("3. Wait for training to complete (may take several minutes)")
+            st.markdown("4. Restart the Streamlit app")
+        else:
+            st.markdown("**Steps:**")
+            st.markdown("1. Locate your model training script or notebook")
+            st.markdown("2. Run the training process to regenerate model files")
+            st.markdown("3. Ensure models are saved to the `models/` directory")
+            st.markdown("4. Restart the Streamlit app")
+    
+    # Additional troubleshooting section
     with st.expander("🔧 Troubleshooting"):
+        st.markdown("**If Option 1 doesn't work:**")
         st.markdown("- Ensure you're in the correct virtual environment")
-        st.markdown(f"- Try: `pip uninstall scikit-learn` then `pip install scikit-learn=={expected_version}`")
+        st.markdown("- Try uninstalling sklearn first: `pip uninstall scikit-learn`")
+        st.markdown(f"- Then reinstall: `pip install scikit-learn=={expected_version}`")
+        st.markdown("- Check for conflicting packages that may pin sklearn to a different version")
+        
+        st.markdown("**If Option 2 doesn't work:**")
+        st.markdown("- Ensure you have the training data file (`Credit_Card_Default.csv`)")
+        st.markdown("- Check that you have sufficient disk space for model files")
+        st.markdown("- Verify all required dependencies are installed (`pip install -r requirements.txt`)")
+        st.markdown("- Check the training script for any errors or missing dependencies")
 
 def extract_sklearn_version_from_pickle(file_path):
-    import pickle, re, io
+    """
+    Extract sklearn version metadata from a pickled model file without fully loading it.
+    
+    This function attempts to extract the scikit-learn version used to train a model
+    by examining the pickle file's metadata or by parsing exception messages from
+    attempted loads. This allows version mismatch detection before full model loading.
+    
+    Args:
+        file_path (str): Path to the pickled model file (.pkl)
+        
+    Returns:
+        tuple: (success: bool, version: str, error_msg: str)
+            - success: True if version was successfully extracted, False otherwise
+            - version: The sklearn version string (e.g., "1.2.0") or None if extraction failed
+            - error_msg: Error message if extraction failed, empty string otherwise
+            
+    Examples:
+        >>> success, version, error = extract_sklearn_version_from_pickle("model.pkl")
+        >>> if success:
+        ...     print(f"Model trained with sklearn {version}")
+        ... else:
+        ...     print(f"Could not extract version: {error}")
+    
+    Notes:
+        - Handles cases where version metadata is not available (older joblib versions)
+        - Does not fully load the model to avoid memory overhead
+        - Falls back to parsing exception messages if direct metadata access fails
+    """
+    import pickle
+    import io
+    
     try:
+        # Approach 1: Try to extract version from joblib metadata
+        # Joblib stores sklearn version information in the pickle stream
         with open(file_path, 'rb') as f:
+            # Read the file content
             file_content = f.read()
+            
+        # Try to find sklearn version in the pickle stream
+        # Joblib often embeds version info as strings in the pickle
         file_str = str(file_content)
+        
+        # Look for sklearn version patterns in the pickle bytes
+        # Common patterns: "sklearn_version", "__version__", version tuples
+        import re
+        
+        # Pattern 1: Look for explicit sklearn version strings (e.g., "1.2.0", "1.3.1")
+        # Use word boundary to avoid matching partial numbers
         version_pattern = r'(?:sklearn|scikit-learn).*?\\x00(\d+\.\d+\.\d+)'
         matches = re.findall(version_pattern, file_str)
         if matches:
+            # Return the first version found
             return (True, matches[0], "")
+        
+        # Pattern 2: Look for version in common pickle metadata locations
+        # Try to find version strings that look like "1.2.0" preceded by sklearn-related text
         broader_pattern = r'sklearn.*?(\d+\.\d+\.\d+)'
         matches = re.findall(broader_pattern, file_str)
         if matches:
+            # Filter out unlikely versions (e.g., starting with 0 or very high numbers)
             for match in matches:
                 parts = match.split('.')
-                if 0 < int(parts[0]) <= 2:
+                major = int(parts[0])
+                if 0 < major <= 2:  # sklearn versions are typically 0.x, 1.x, or 2.x
                     return (True, match, "")
+        
+        # Pattern 3: Look for version tuples in pickle metadata
+        # Joblib may store version as (1, 2, 0) tuple
+        tuple_pattern = r'\((\d+),\s*(\d+),\s*(\d+)\)'
+        tuple_matches = re.findall(tuple_pattern, file_str)
+        if tuple_matches:
+            # Check if this looks like a version tuple (reasonable version numbers)
+            for match in tuple_matches:
+                major, minor, patch = match
+                if 0 < int(major) <= 2 and int(minor) <= 20:  # Reasonable sklearn version bounds
+                    version_str = f"{major}.{minor}.{patch}"
+                    return (True, version_str, "")
+        
+        # Approach 2: Try to load and catch the exception message
+        # sklearn version mismatch exceptions often contain version information
         try:
             with open(file_path, 'rb') as f:
                 joblib.load(f)
+            # If load succeeds, we can't extract version this way
+            # Return the current sklearn version as it's compatible
             return (True, sklearn.__version__, "")
         except Exception as load_error:
             error_str = str(load_error)
+            
+            # Parse exception message for version information
+            # Common patterns in sklearn/joblib exceptions:
+            # "sklearn version 1.2.0 is required"
+            # "module 'sklearn' has no attribute..." (version mismatch)
+            # "cannot import name..." (version mismatch)
+            
             version_in_error = re.findall(r'version\s+(\d+\.\d+\.\d+)', error_str)
             if version_in_error:
                 return (True, version_in_error[0], "")
-            return (False, None, f"Could not extract version: {error_str[:100]}")
+            
+            # If we can't extract version from error, return failure
+            return (False, None, f"Could not extract version from pickle or error message: {error_str[:100]}")
+            
     except FileNotFoundError:
         return (False, None, f"File not found: {file_path}")
     except Exception as e:
         return (False, None, f"Error reading pickle file: {str(e)[:100]}")
 
-@st.cache_resource
+@st.cache_resource(show_spinner=False)
 def load_models():
+    """
+    Load pre-trained models from models/ directory.
+
+    Returns:
+        Tuple containing:
+        - pkls: Dict mapping model names to loaded model objects (or mock objects if loading fails)
+        - results: Dict containing performance metrics from results_summary.json
+        - comp_df: DataFrame with comparison metrics
+
+    Models Loaded:
+        All PKL files found in models/ directory including:
+        - Baseline models (Logistic Regression, Decision Tree, Random Forest, Gradient Boosting, XGBoost)
+        - SMOTE models (Logistic Regression, Random Forest, XGBoost)
+        - Weight models (Logistic Regression, Random Forest, XGBoost)
+        - Tuned models (SMOTE XGBoost, Weight XGBoost)
+    """
     base = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'models')
     pkls = {}
+    
+    # Define all expected model files with their display names
     model_files = [
         ('baseline_Logistic_Regression.pkl', 'Baseline — Logistic Regression'),
         ('baseline_Decision_Tree.pkl', 'Baseline — Decision Tree'),
         ('baseline_Random_Forest.pkl', 'Baseline — Random Forest'),
         ('baseline_Gradient_Boosting.pkl', 'Baseline — Gradient Boosting'),
         ('baseline_XGBoost.pkl', 'Baseline — XGBoost'),
+        ('baseline_LightGBM.pkl', 'Baseline — LightGBM'),
         ('SMOTE_Logistic_Regression.pkl', 'SMOTE — Logistic Regression'),
         ('SMOTE_Random_Forest.pkl', 'SMOTE — Random Forest'),
         ('SMOTE_XGBoost.pkl', 'SMOTE — XGBoost'),
+        ('SMOTE_LightGBM.pkl', 'SMOTE — LightGBM'),
         ('Weight_Logistic_Regression.pkl', 'Weight — Logistic Regression'),
         ('Weight_Random_Forest.pkl', 'Weight — Random Forest'),
         ('Weight_XGBoost.pkl', 'Weight — XGBoost'),
-        ('tuned_smote_xgb.pkl', 'Tuned SMOTE XGB'),
-        ('tuned_weight_xgb.pkl', 'Tuned Weight XGB'),
+        ('Weight_LightGBM.pkl', 'Weight — LightGBM'),
+        ('tuned_smote_xgb.pkl', 'Tuned SMOTE XGBoost'),
+        ('tuned_weight_xgb.pkl', 'Tuned Weight XGBoost'),
+        ('tuned_smote_lgbm.pkl', 'Tuned SMOTE LightGBM'),
     ]
+    
+    # Load each model file
     for fname, display_name in model_files:
         model_path = os.path.join(base, fname)
         if os.path.exists(model_path):
+            # Extract expected sklearn version from model metadata before attempting to load
             success, expected_version, version_error = extract_sklearn_version_from_pickle(model_path)
+            
             try:
                 loaded = joblib.load(model_path)
+                # Models are saved as dicts with {'model': ..., 'scaler': ..., 'features': ..., 'scaled': ...}
+                # Store the entire dict
                 pkls[display_name] = loaded
             except (ModuleNotFoundError, AttributeError, ImportError) as e:
+                # Version mismatch or module compatibility error
+                # Store detailed version information for error reporting
                 current_version = sklearn.__version__
+                
                 pkls[display_name] = {
-                    'model': None, 'scaler': None, 'features': [], 'scaled': False,
+                    'model': None,
+                    'scaler': None,
+                    'features': [],
+                    'scaled': False,
                     '_load_error': str(e),
                     '_expected_sklearn_version': expected_version if success else 'unknown',
                     '_current_sklearn_version': current_version,
                     '_error_type': 'version_mismatch'
                 }
             except Exception as e:
+                # Other loading errors (not version-related)
+                current_version = sklearn.__version__
+                
                 pkls[display_name] = {
-                    'model': None, 'scaler': None, 'features': [], 'scaled': False,
+                    'model': None,
+                    'scaler': None,
+                    'features': [],
+                    'scaled': False,
                     '_load_error': str(e),
                     '_expected_sklearn_version': expected_version if success else 'unknown',
-                    '_current_sklearn_version': sklearn.__version__,
+                    '_current_sklearn_version': current_version,
                     '_error_type': 'other'
                 }
         else:
             st.warning(f"⚠️ Model file not found: {fname}")
-
+    
+    # Load results_summary.json for performance metrics
     results_path = os.path.join(base, 'results_summary.json')
     results = {}
     if os.path.exists(results_path):
         try:
             with open(results_path, 'r', encoding='utf-8') as f:
                 results = json.load(f)
+            # Debug: Print loaded model names
+            if results:
+                print(f"✅ Loaded {len(results)} models from results_summary.json")
+                print(f"Model names: {list(results.keys())[:3]}...")
+            else:
+                print("⚠️ results_summary.json is empty")
+        except json.JSONDecodeError as e:
+            st.warning(f"⚠️ Failed to parse results_summary.json: {str(e)}")
         except Exception as e:
             st.warning(f"⚠️ Error loading results_summary.json: {str(e)}")
     else:
         st.warning("⚠️ results_summary.json not found in models/ directory")
-
+    
+    # Load comparison_table.csv for additional metrics
     comp_path = os.path.join(base, 'comparison_table.csv')
     comp_df = None
     if os.path.exists(comp_path):
@@ -528,16 +740,41 @@ def load_models():
             comp_df = pd.read_csv(comp_path)
         except Exception as e:
             st.warning(f"⚠️ Failed to load comparison_table.csv: {str(e)}")
-
+    
     return pkls, results, comp_df
 
 df = load_data()
 pkls, results_json, comp_df = load_models()
 
+# Add cache clearing option to sidebar
+if st.sidebar.button("🔄 Clear Cache & Reload Models"):
+    st.cache_data.clear()
+    st.cache_resource.clear()
+    st.rerun()
+
+# Show diagnostic info in sidebar
+with st.sidebar.expander("ℹ️ Diagnostics"):
+    st.write(f"**Sklearn Version:** {sklearn.__version__}")
+    st.write(f"**Models Loaded:** {len([k for k, v in pkls.items() if not v.get('_load_error')])}/{len(pkls)}")
+
+    if pkls:
+        models_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'models')
+        if os.path.exists(models_dir):
+            pkl_files = [f for f in os.listdir(models_dir) if f.endswith('.pkl')]
+            if pkl_files:
+                latest_pkl = max([os.path.join(models_dir, f) for f in pkl_files], key=os.path.getmtime)
+                latest_time = os.path.getmtime(latest_pkl)
+                import time
+                readable_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(latest_time))
+                st.write(f"**Latest Model:** {readable_time}")
+
+# Check if we have any data to display (either models or metrics)
 if not pkls and not results_json and comp_df is None:
-    st.error("⚠️ No model data found in ./models/ directory.")
+    st.error("⚠️ No model data found in ./models/ directory. Please ensure model files exist.")
+    st.info("Debug info: Check that results_summary.json and comparison_table.csv exist in models/ folder")
     st.stop()
 
+# Show warning if ANY model failed to load (not just when all fail)
 failed_pkls = {k: v for k, v in pkls.items() if v.get('_load_error')}
 if failed_pkls:
     first_failed = next(
@@ -546,6 +783,7 @@ if failed_pkls:
     )
     expected_version = first_failed.get('_expected_sklearn_version', 'unknown')
     current_version  = sklearn.__version__
+
     if expected_version != current_version:
         display_version_mismatch_guidance(expected_version, current_version)
     else:
@@ -553,8 +791,13 @@ if failed_pkls:
         with st.expander("Show load errors"):
             for name, pkg in failed_pkls.items():
                 st.code(f"{name}: {pkg.get('_load_error', 'unknown error')}")
+
     n_ok = len(pkls) - len(failed_pkls)
-    st.info(f"📊 **Note:** {n_ok}/{len(pkls)} models loaded successfully.")
+    st.info(
+        f"📊 **Note:** {n_ok}/{len(pkls)} models loaded successfully. "
+        "Metrics visualization is still available. "
+        "Run `python model_train.py` to regenerate compatible model files."
+    )
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -590,9 +833,14 @@ with st.sidebar:
     ], label_visibility="collapsed")
 
     st.markdown("---")
-
-    models_loaded_successfully = pkls and any(not pkg.get('_load_error') for pkg in pkls.values())
-
+    
+    # Determine model loading status for success indicator
+    models_loaded_successfully = False
+    if pkls:
+        # Check if at least one model loaded successfully (no _load_error key)
+        models_loaded_successfully = any(not pkg.get('_load_error') for pkg in pkls.values())
+    
+    # Build sidebar info with dynamic model status
     sidebar_info = """
     <div style='font-size:12px; line-height:2.0;'>
         <div>📁 <b>30,000</b> records</div>
@@ -601,19 +849,29 @@ with st.sidebar:
         <div>📅 Apr – Sep 2005</div>
         <div style='margin-top:8px;'>🇹🇼 Taiwan credit market</div>
     """
+    
+    # Add success indicator if models loaded successfully
     if models_loaded_successfully:
-        sidebar_info += f"<div style='margin-top:8px; color:#00D4AA;'>✅ Models loaded (sklearn {sklearn.__version__})</div>"
+        sklearn_version = sklearn.__version__
+        sidebar_info += f"<div style='margin-top:8px; color:#00D4AA;'>✅ Models loaded successfully with sklearn {sklearn_version}</div>"
     else:
+        # Show generic message if models failed to load
         sidebar_info += "<div style='margin-top:8px; color:#FF6B6B;'>⚠️ Model loading issues detected</div>"
-    sidebar_info += "</div>"
+    
+    sidebar_info += """
+    </div>
+    """
+    
     st.markdown(sidebar_info, unsafe_allow_html=True)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# GLOSSARY HELPERS
+# GLOSSARY HELPERS — pre-build HTML to avoid ternary-in-fstring rendering bug
 # ══════════════════════════════════════════════════════════════════════════════
 def _gcard(term, color, defn, example, formula=None):
-    formula_html = "<div class='formula'>" + formula + "</div>" if formula else ""
+    formula_html = (
+        "<div class='formula'>" + formula + "</div>"
+    ) if formula else ""
     html = (
         "<div class='gloss-card' style='border-left-color:" + color + "'>"
         "<div class='gloss-term' style='color:" + color + "'>" + term + "</div>"
@@ -654,6 +912,7 @@ if page == "🏠  Overview & Glossary":
 
     st.markdown("<br>", unsafe_allow_html=True)
 
+    # ── INTERACTIVE RISK FLOW ────────────────────────────────────────────────
     st.markdown("<div class='section-title'>The Credit Risk Journey</div>", unsafe_allow_html=True)
     st.markdown("<div class='section-sub'>Click each stage to understand what happens at every step from healthy credit to default</div>", unsafe_allow_html=True)
 
@@ -661,20 +920,26 @@ if page == "🏠  Overview & Glossary":
 <!DOCTYPE html><html><head><style>
 * { box-sizing:border-box; margin:0; padding:0; }
 body { background:#0D1117; font-family:'Inter',-apple-system,sans-serif; padding:20px 20px 16px; }
+
+/* Row: stages + connectors, vertically centered at node mid */
 .row { display:flex; align-items:flex-start; width:100%; }
 .stage { flex:1; display:flex; flex-direction:column; align-items:center;
          cursor:pointer; padding:0 4px; min-width:0; }
+/* Connector: fixed height matching node so line centres perfectly */
 .conn { flex:0 0 18px; display:flex; align-items:center; height:46px; }
 .conn-line { width:100%; height:2px; border-radius:1px; }
+
 .node { width:46px; height:46px; border-radius:50%; border:2px solid;
         display:flex; align-items:center; justify-content:center;
         font-size:15px; font-weight:700; transition:transform .3s, box-shadow .3s;
         position:relative; z-index:2; flex-shrink:0; }
 .node:hover { transform:scale(1.18); }
 .node.active { transform:scale(1.26); box-shadow:0 0 0 6px rgba(255,255,255,.04), 0 0 18px currentColor; }
+
 .slbl { font-size:10px; text-align:center; margin-top:8px; line-height:1.3;
         font-weight:500; color:#A8B4C0; transition:color .25s; max-width:80px; }
 .slbl.active { color:#E6EDF3; }
+
 .detail { border-radius:14px; border:1px solid; padding:22px 26px;
           margin-top:18px; transition:all .4s; min-height:200px; }
 .d-header { display:flex; align-items:center; gap:14px; margin-bottom:16px; }
@@ -780,6 +1045,8 @@ render();
 """, height=600)
 
     st.markdown("<br>", unsafe_allow_html=True)
+
+    # ── GLOSSARY ──────────────────────────────────────────────────────────────
     st.markdown("<div class='section-title'>📖 Complete Glossary — Plain English</div>", unsafe_allow_html=True)
     st.markdown("<div class='section-sub'>Every technical term — explained simply, with real examples and formulas</div>", unsafe_allow_html=True)
 
@@ -797,19 +1064,19 @@ render();
                "How many months behind you are on payments. -1 means paid on time (or early). 0 means minimum payment. 1 means 1 month late, 2 means 2 months late, etc.",
                "PAY_0 = 2 means the customer was 2 months late on the September 2005 payment.")
         _gcard("Bill Amount (BILL_AMT1–6)","#BC8CFF",
-               "The total outstanding balance on your credit card statement for a given month.",
+               "The total outstanding balance on your credit card statement for a given month. This includes all charges, unpaid balances rolled over, and interest.",
                "BILL_AMT1 = NT$29,000 means there was NT$29,000 owed in the September statement.")
         _gcard("Payment Amount (PAY_AMT1–6)","#3FB950",
-               "The actual cash amount the customer paid toward their bill in a given month.",
-               "PAY_AMT1 = NT$1,500 means the customer sent NT$1,500 in September.")
+               "The actual cash amount the customer paid toward their bill in a given month. This is what they sent to the bank — not what they owed.",
+               "PAY_AMT1 = NT$1,500 means the customer sent NT$1,500 in September regardless of how much they owed.")
         _gcard("Default","#FF4D4F",
-               "Failure to repay debt per the agreed schedule. DEFAULT = 1 means the customer did NOT pay their minimum balance for the following month.",
-               "DEFAULT = 1 → this person will fail to pay next month.")
+               "Failure to repay debt per the agreed schedule. In this dataset, 'default' means the customer did NOT pay their minimum balance for the following month.",
+               "DEFAULT = 1 → this person will fail to pay next month. This is what we are trying to predict.")
         _gcard("Charge-off","#FF7B72",
-               "When a bank officially declares a loan as a loss — typically after 180 days of non-payment.",
+               "When a bank officially declares a loan as a loss on its books — typically after 180 days of non-payment. The debt still exists legally, but the bank has given up on recovering it through normal means.",
                "After 6 months of non-payment, the bank records a charge-off and sells the debt to a collections agency.")
         _gcard("Delinquency","#F0883E",
-               "Being overdue on a payment by any amount of time. Stages: 30-DPD, 60-DPD, 90-DPD (days past due).",
+               "Being overdue on a payment by any amount of time. Technically starts at 1 day past due. More severe stages: 30-DPD, 60-DPD, 90-DPD (days past due).",
                "A customer who missed their August payment is 30 days delinquent by September.")
 
     with tabs[1]:
@@ -818,61 +1085,91 @@ render();
                "Customer A: BILL_AMT1 = NT$80,000, LIMIT_BAL = NT$100,000 → Utilization = 80% (High Risk)",
                "Utilization = BILL_AMT1 ÷ LIMIT_BAL × 100")
         _gcard("Payment-to-Bill Ratio","#4DB8FF",
-               "How much of the monthly bill the customer actually paid. A ratio of 1.0 = paid in full.",
+               "How much of the monthly bill the customer actually paid. A ratio of 1.0 = paid in full. Below 0.1 = barely paying the minimum — a strong stress signal.",
                "Bill = NT$20,000, Payment = NT$2,000 → Ratio = 0.10 (paying only 10%)",
                "Pay Ratio = PAY_AMT1 ÷ BILL_AMT1")
         _gcard("Average Payment Status","#F5A623",
-               "The average repayment delay across all 6 months. Negative values are good.",
+               "The average repayment delay across all 6 months. Negative values are good (paid early). Positive values indicate months of delay.",
                "Values of [0, 1, 2, 1, 0, -1] → Avg = 0.5 (occasional delay)",
                "Avg Status = (PAY_0 + PAY_2 + PAY_3 + PAY_4 + PAY_5 + PAY_6) ÷ 6")
         _gcard("Total Outstanding Debt","#BC8CFF",
-               "Sum of all 6 months of bill statements.",
-               "Six bills of NT$30K each → Total = NT$180,000",
+               "Sum of all 6 months of bill statements. Gives a full picture of cumulative debt exposure across the analysis period.",
+               "Six bills of NT$30K each → Total = NT$180,000 total debt exposure",
                "Total Bill = BILL_AMT1 + BILL_AMT2 + BILL_AMT3 + BILL_AMT4 + BILL_AMT5 + BILL_AMT6")
-        _gcard("Gini Coefficient","#3FB950",
-               "Measures how well a model separates defaulters from non-defaulters. 0 = random, 100 = perfect.",
+        _gcard("Gini Coefficient (Model Quality)","#3FB950",
+               "Measures how well a model separates defaulters from non-defaulters. 0 = random guessing, 100 = perfect. Industry standard for credit scoring models.",
                "AUC = 0.82 → Gini = 0.64 → Good discriminatory power",
                "Gini = 2 × AUC − 1")
         _gcard("Log Loss","#FF4D4F",
-               "Measures the accuracy of probability predictions. Lower is better.",
-               "Predicted 90% default, actual = default → Low loss",
+               "Measures the accuracy of probability predictions. Lower is better. A model that says 99% confidence and is wrong gets severely penalized.",
+               "Predicted 90% default, actual = default → Low loss. Predicted 90% default, actual = no default → High loss",
                "Log Loss = −[y × log(p) + (1−y) × log(1−p)]")
 
     with tabs[2]:
         for term, color, defn, ex in [
-            ("Classification Model","#00D4AA","A model that predicts which category something belongs to. Outputs a probability (0 to 1).","If model outputs 0.73: 73% chance this person defaults next month."),
-            ("Training vs Testing Split","#4DB8FF","We divide data into training (80%) and testing (20%) — data the model never sees during training.","30,000 rows → 24,000 training + 6,000 test rows"),
-            ("Logistic Regression","#F5A623","The simplest classification model. Finds a boundary separating defaulters from non-defaulters using a sigmoid curve.","Output: probability = 1 / (1 + e^(-z))"),
-            ("Random Forest","#BC8CFF","An ensemble of hundreds of decision trees, each trained on slightly different data. Each tree votes.","500 trees: 340 say YES → prediction = YES (68% confidence)"),
-            ("XGBoost","#3FB950","Gradient Boosted trees — each new tree specifically learns from the mistakes of the previous one.","Tree 1 gets 70% right → Tree 2 focuses on the 30% errors → combined = 92%"),
-            ("SMOTE","#58A6FF","Synthetic Minority Over-sampling Technique. Creates synthetic minority-class examples. Applied to training set only.","22% defaulters vs 78% non-defaulters → SMOTE → 50/50 balanced training set"),
-            ("Class Imbalance","#F0883E","When one outcome is much rarer than the other. Here, only 22% defaulted.","22% defaulters — a lazy model predicts 'no default' always and gets 78% accuracy but catches zero defaulters"),
-            ("ROC-AUC","#FF4D4F","Area Under Curve. 0.5 = random coin flip. 0.8 = good. 0.9+ = excellent.","AUC=0.82: the model ranks a real defaulter higher than a non-defaulter 82% of the time"),
+            ("Classification Model","#00D4AA",
+             "A model that predicts which category something belongs to. In our case: 'Will this person default? YES or NO?' The model outputs a probability (0 to 1), and we pick a threshold (e.g. 0.5) to decide.",
+             "If model outputs 0.73, we interpret: 73% chance this person defaults next month."),
+            ("Training vs Testing Split","#4DB8FF",
+             "We divide data into training (80%) — what the model learns from — and testing (20%) — data the model has never seen, used to measure real-world performance.",
+             "30,000 rows → 24,000 training rows + 6,000 test rows"),
+            ("Logistic Regression","#F5A623",
+             "The simplest classification model. It finds a mathematical boundary that separates defaulters from non-defaulters using a sigmoid curve. Highly interpretable — you can see exactly which variable pushed the decision.",
+             "Output: probability = 1 / (1 + e^(-z)) where z is a weighted sum of your features"),
+            ("Random Forest","#BC8CFF",
+             "An ensemble of hundreds of decision trees, each trained on slightly different data. Each tree votes, and the majority wins. Handles non-linear patterns naturally.",
+             "500 trees each say YES or NO → 340 say YES → prediction = YES (68% confidence)"),
+            ("XGBoost","#3FB950",
+             "Gradient Boosted trees — each new tree specifically learns from the mistakes of the previous one. State-of-the-art for tabular data. Often wins machine learning competitions.",
+             "Tree 1 gets 70% right → Tree 2 focuses on the 30% errors → combined = 92%"),
+            ("SMOTE","#58A6FF",
+             "Synthetic Minority Over-sampling Technique. Creates synthetic minority-class examples by interpolating between existing ones. Handles class imbalance — applied to training set only.",
+             "22% defaulters vs 78% non-defaulters → SMOTE → 50/50 balanced training set"),
+            ("Class Imbalance","#F0883E",
+             "When one outcome is much rarer than the other. Here, only 22% defaulted vs 78% didn't. A lazy model can achieve 78% accuracy just by predicting 'no default' — but that's useless!",
+             "22% defaulters vs 78% non-defaulters → model needs to be smart, not lazy"),
+            ("ROC-AUC","#FF4D4F",
+             "Receiver Operating Characteristic — Area Under Curve. Measures model quality independent of threshold. 0.5 = random coin flip. 0.8 = good. 0.9+ = excellent. The single best number to compare models.",
+             "AUC=0.82 means: if you pick one defaulter and one non-defaulter at random, the model ranks the defaulter higher 82% of the time"),
         ]:
             _gcard_noex(term, color, defn, ex)
 
     with tabs[3]:
         for term, color, defn, ex in [
-            ("Precision","#00D4AA","Of all people predicted to default, how many actually did?","Model flagged 100 → 78 defaulted → Precision = 78%"),
-            ("Recall (Sensitivity)","#F5A623","Of all people who actually defaulted, how many did the model catch?","200 real defaulters → model caught 160 → Recall = 80%"),
-            ("F1 Score","#4DB8FF","Harmonic mean of Precision and Recall.","F1 = 2 × (0.78 × 0.80) / (0.78 + 0.80) = 0.79"),
-            ("Confusion Matrix","#BC8CFF","A 2×2 table: True Positive, True Negative, False Positive, False Negative.","TP=160, TN=1800, FP=44, FN=40"),
-            ("Correlation","#3FB950","How strongly two variables move together. -1 to +1.","PAY_0 and DEFAULT: +0.32 → strong positive"),
-            ("Standard Deviation","#FF4D4F","Measures how spread out values are.","Age mean=35.5, std=9.2 → most customers are 26–45"),
-            ("P-value","#F0883E","Probability of seeing this result by chance. Below 0.05 = real pattern.","p=0.001 for PAY_0 → not random"),
+            ("Precision","#00D4AA",
+             "Of all the people your model predicted WILL default, how many actually did? High precision = fewer false alarms. Banks care about this because investigating false alarms wastes money.",
+             "Model flagged 100 people → 78 actually defaulted → Precision = 78%"),
+            ("Recall (Sensitivity)","#F5A623",
+             "Of all the people who actually DID default, how many did your model correctly catch? High recall = fewer missed defaults. Banks care about this even more — missing a defaulter costs real money.",
+             "200 real defaulters in test set → model caught 160 → Recall = 80%"),
+            ("F1 Score","#4DB8FF",
+             "The harmonic mean of Precision and Recall. Gives a single number that balances both. Especially useful when the dataset is imbalanced.",
+             "F1 = 2 × (0.78 × 0.80) / (0.78 + 0.80) = 0.79"),
+            ("Confusion Matrix","#BC8CFF",
+             "A 2×2 table showing all four outcomes: True Positive (correctly predicted default), True Negative (correctly predicted no default), False Positive (wrongly flagged), False Negative (missed a real default).",
+             "TP=160, TN=1800, FP=44, FN=40 → reading the full picture"),
+            ("Correlation","#3FB950",
+             "How strongly two variables move together. Ranges from -1 (perfectly opposite) to +1 (perfectly aligned). 0 = no relationship.",
+             "PAY_0 and DEFAULT have correlation +0.32 → strong positive → late payments predict default"),
+            ("Standard Deviation","#FF4D4F",
+             "Measures how spread out the values are. Small std = everyone has similar values. Large std = wide range.",
+             "Average age = 35.5 years, std = 9.2 years → most customers between 26–45 years old"),
+            ("P-value","#F0883E",
+             "In statistical testing: the probability of seeing this result by chance. Below 0.05 (5%) = the pattern is real, not random.",
+             "p-value = 0.001 for PAY_0 → extremely unlikely to see this correlation by chance"),
         ]:
             _gcard_noex(term, color, defn, ex)
 
     with tabs[4]:
-        st.markdown("<div class='insight'>This dataset covers <b>30,000 credit card clients in Taiwan</b> from April to September 2005.</div>", unsafe_allow_html=True)
+        st.markdown("<div class='insight'>This dataset covers <b>30,000 credit card clients in Taiwan</b> from April to September 2005. Each row is one customer. The target variable tells us: did they default on their payment the following month?</div>", unsafe_allow_html=True)
         var_data = {
             "Variable": ["ID","LIMIT_BAL","SEX","EDUCATION","MARRIAGE","AGE","PAY_0","PAY_2","PAY_3","PAY_4","PAY_5","PAY_6","BILL_AMT1–6","PAY_AMT1–6","DEFAULT"],
             "Type": ["ID","Numeric","Categorical","Categorical","Categorical","Numeric","Ordinal","Ordinal","Ordinal","Ordinal","Ordinal","Ordinal","Numeric","Numeric","Target"],
-            "Description": ["Unique customer identifier","Credit limit in NT dollars","1=Male, 2=Female","1=Graduate, 2=University, 3=High School, 4=Others","1=Married, 2=Single, 3=Others","Customer age in years","Repayment status Sep 2005","Repayment status Aug 2005","Repayment status Jul 2005","Repayment status Jun 2005","Repayment status May 2005","Repayment status Apr 2005","Bill statement amount each month","Previous payment amount each month","1=Defaulted, 0=Did not default"],
-            "Values / Range": ["1–30,000","NT$10K–NT$1M","1, 2","1,2,3,4,5,6","1,2,3","21–79","-2,-1,0,1..9","-2,-1,0,1..8","-2,-1,0,1..8","-2,-1,0,1..8","-2,-1,0,1..8","-2,-1,0,1..8","NT$0–NT$1M+","NT$0–NT$500K+","0, 1"]
+            "Description": ["Unique customer identifier (not used in modeling)","Credit limit in NT dollars — individual + supplementary","1 = Male, 2 = Female","1=Graduate, 2=University, 3=High School, 4=Others","1=Married, 2=Single, 3=Others","Customer age in years","Repayment status September 2005 (most recent)","Repayment status August 2005","Repayment status July 2005","Repayment status June 2005","Repayment status May 2005","Repayment status April 2005 (oldest)","Bill statement amount for each month (Sep → Apr)","Previous payment amount for each month (Sep → Apr)","1 = Defaulted next month, 0 = Did not default"],
+            "Values / Range": ["1 – 30,000","NT$10K – NT$1M","1, 2","1, 2, 3, 4, 5, 6","1, 2, 3","21 – 79 years","-2, -1, 0, 1, 2 … 9","-2, -1, 0, 1, 2 … 8","-2, -1, 0, 1, 2 … 8","-2, -1, 0, 1, 2 … 8","-2, -1, 0, 1, 2 … 8","-2, -1, 0, 1, 2 … 8","NT$0 – NT$1M+","NT$0 – NT$500K+","0, 1"]
         }
         st.dataframe(pd.DataFrame(var_data), use_container_width=True, hide_index=True)
-        st.markdown("<div class='insight-warn'>⚠️ <b>PAY column note:</b> PAY_0 is September (most recent), PAY_2 is August. There is no PAY_1. Values: -2=no consumption, -1=paid in full, 0=revolving credit, positive=months of delay.</div>", unsafe_allow_html=True)
+        st.markdown("<div class='insight-warn' style='margin-top:16px'>⚠️ <b>PAY column note:</b> PAY_0 is September (most recent), PAY_2 is August. There is no PAY_1 — this is a quirk of the original dataset. Values of -2 indicate no consumption that month, -1 means paid in full, 0 means revolving credit, and positive integers indicate months of delay.</div>", unsafe_allow_html=True)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -897,7 +1194,7 @@ elif page == "📊  Exploratory Analysis":
         s = df[nc].describe().T
         s.columns = ['Count','Mean','Std Dev','Min','25th %ile','Median','75th %ile','Max']
         st.dataframe(s.round(0).astype(int), use_container_width=True)
-        st.markdown("<div class='insight'>All columns are numeric with no missing values. BILL_AMT and PAY_AMT columns have wide ranges.</div>", unsafe_allow_html=True)
+        st.markdown("<div class='insight'>All columns are numeric with no missing values. The dataset is clean and ready for analysis. BILL_AMT and PAY_AMT columns have wide ranges — some customers have zero bills (no usage) while others carry NT$1M+ in balances.</div>", unsafe_allow_html=True)
 
     with eda_tabs[1]:
         st.markdown("<div class='section-title'>Target Variable — Default Distribution</div>", unsafe_allow_html=True)
@@ -936,7 +1233,7 @@ elif page == "📊  Exploratory Analysis":
             text=[str(v)+'%' for v in L(age_dr['mean'])],textposition='outside'))
         fig3.update_layout(**PT,height=300,xaxis_title='Age Group',yaxis_title='Default Rate (%)',margin=dict(t=20,b=10,l=10,r=10))
         st.plotly_chart(fig3,use_container_width=True)
-        st.markdown("<div class='insight'>Younger customers (21–25) show the highest default rate. Risk decreases with age up to ~45.</div>", unsafe_allow_html=True)
+        st.markdown("<div class='insight'>Younger customers (21–25) show the highest default rate — likely due to lower financial stability and less credit experience. Risk decreases with age up to ~45, then stabilizes.</div>", unsafe_allow_html=True)
 
     with eda_tabs[2]:
         st.markdown("<div class='section-title'>Variable Distributions</div>", unsafe_allow_html=True)
@@ -946,11 +1243,11 @@ elif page == "📊  Exploratory Analysis":
         with c1:
             fig = px.histogram(pxdf(df),x=sel_col,color='DEFAULT_LABEL',color_discrete_map=COLORS,
                 nbins=50,barmode='overlay',opacity=0.75,labels={'DEFAULT_LABEL':'Status'})
-            fig.update_layout(**PT,height=320,title=f'Distribution of {sel_col}',margin=dict(t=40,b=10,l=10,r=10))
+            fig.update_layout(**PT,height=320,title=f'Distribution of {sel_col} by Default Status',margin=dict(t=40,b=10,l=10,r=10))
             st.plotly_chart(fig,use_container_width=True)
         with c2:
             fig2 = px.box(pxdf(df),x='DEFAULT_LABEL',y=sel_col,color='DEFAULT_LABEL',color_discrete_map=COLORS,points=False)
-            fig2.update_layout(**PT,height=320,title=f'{sel_col} — Box Plot',margin=dict(t=40,b=10,l=10,r=10),showlegend=False)
+            fig2.update_layout(**PT,height=320,title=f'{sel_col} — Box Plot by Default Status',margin=dict(t=40,b=10,l=10,r=10),showlegend=False)
             st.plotly_chart(fig2,use_container_width=True)
         st.markdown("<div class='section-title'>Repayment Status Distribution (PAY_0)</div>", unsafe_allow_html=True)
         pd0 = df['PAY_0'].value_counts().sort_index().reset_index()
@@ -974,17 +1271,17 @@ elif page == "📊  Exploratory Analysis":
             text=[f'{v:.3f}' for v in L(ct.values)],textposition='outside'))
         fig2.update_layout(**PT,height=400,xaxis_title='Correlation with DEFAULT',margin=dict(t=20,b=10,l=10,r=30))
         st.plotly_chart(fig2,use_container_width=True)
-        st.markdown("<div class='insight'>PAY_0 has the highest positive correlation with default at +0.32. LIMIT_BAL has a negative correlation (−0.15).</div>", unsafe_allow_html=True)
+        st.markdown("<div class='insight'>PAY_0 (September payment status) has the highest positive correlation with default at +0.32. LIMIT_BAL has a negative correlation (−0.15) — higher credit limits are extended to more creditworthy customers who are less likely to default. Bill amounts show moderate positive correlation.</div>", unsafe_allow_html=True)
 
     with eda_tabs[4]:
         st.markdown("<div class='section-title'>💡 Key Data Insights</div>", unsafe_allow_html=True)
         for title, color, text, cls in [
-            ("🎯 Strong Class Imbalance","#F0883E","78% did NOT default vs 22% who did. We must use AUC-ROC and F1 Score as primary metrics, not raw accuracy.","insight-warn"),
-            ("🔑 PAY_0 is King","#00D4AA","The most recent payment status has the highest correlation with default at +0.32.","insight"),
-            ("💰 Credit Limit as Proxy for Creditworthiness","#4DB8FF","Higher LIMIT_BAL customers default less (-0.15 correlation). Banks pre-screen applicants.","insight"),
-            ("📈 Bill Amounts are Highly Correlated","#BC8CFF","BILL_AMT1 through BILL_AMT6 correlate at 0.8+. We engineer TOTAL_BILL and UTIL_RATE instead.","insight"),
-            ("👤 Demographics Matter Less Than Behavior","#3FB950","Gender, education, marital status show ±3–5% differences. Behavioral features are 5–10× more predictive.","insight"),
-            ("⚠️ The 'Never-Used' Problem","#FF4D4F","Many customers have BILL_AMT = 0 for several months but still default. Handled carefully in feature engineering.","insight-red"),
+            ("🎯 Strong Class Imbalance","#F0883E","78% of customers did NOT default vs 22% who did. A model that always predicts 'safe' gets 78% accuracy — but catches zero actual defaulters. We must use AUC-ROC and F1 Score as our primary metrics, not raw accuracy.","insight-warn"),
+            ("🔑 PAY_0 is King","#00D4AA","The most recent payment status (September 2005) has the highest correlation with default at +0.32. This single feature alone separates defaulters from non-defaulters better than any other variable.","insight"),
+            ("💰 Credit Limit as a Proxy for Creditworthiness","#4DB8FF","Higher LIMIT_BAL customers default less (-0.15 correlation). Banks already screen applicants before granting high limits — so high-limit customers are pre-selected for better credit behavior.","insight"),
+            ("📈 Bill Amounts are Highly Correlated With Each Other","#BC8CFF","BILL_AMT1 through BILL_AMT6 correlate at 0.8+ with each other. We engineer TOTAL_BILL and UTIL_RATE instead of using all 6 separately.","insight"),
+            ("👤 Demographics Matter Less Than Behavior","#3FB950","Gender, education, and marital status show ±3–5% default rate differences. Behavioral features (payment history, utilization) are 5–10× more predictive than who someone is.","insight"),
+            ("⚠️ The 'Never-Used' Problem","#FF4D4F","Many customers have BILL_AMT = 0 for several months — they have the card but don't use it. Some still default (annual fees, small charges). We handle zero-bill records carefully in feature engineering.","insight-red"),
         ]:
             st.markdown(f"<div class='{cls}'><b style='color:{color}'>{title}</b><br>{text}</div>", unsafe_allow_html=True)
 
@@ -995,18 +1292,23 @@ elif page == "📊  Exploratory Analysis":
 elif page == "⚙️  Feature Engineering":
     st.markdown("<div class='hero-title' style='font-size:38px'>Feature Engineering</div>", unsafe_allow_html=True)
     st.markdown("<div class='hero-sub'>Transforming raw data into powerful signals that models can learn from</div>", unsafe_allow_html=True)
-    st.markdown("<div class='insight'>Raw columns tell the model <i>what happened</i>. Engineered features tell it <i>what it means</i>.</div>", unsafe_allow_html=True)
+    st.markdown("<div class='insight'>Raw columns tell the model <i>what happened</i>. Engineered features tell it <i>what it means</i>. Combining and transforming columns creates richer signals.</div>", unsafe_allow_html=True)
 
     COLORS = {'Default':'#FF4D4F','No Default':'#00D4AA'}
     fe_tabs = st.tabs(["🔧 Engineered Features","📊 Feature Importance Preview","🔄 Preprocessing Pipeline"])
 
     with fe_tabs[0]:
         features = [
-            ("UTIL_RATE","#00D4AA","Credit Utilization Rate","BILL_AMT1 ÷ LIMIT_BAL","How much of the credit limit is being used. Values above 0.75 signal high stress.",df['UTIL_RATE'].describe()),
-            ("PAY_RATIO","#4DB8FF","Payment Coverage Ratio","TOTAL_PAY ÷ TOTAL_BILL","What fraction of total bill was actually paid. Below 0.1 means barely making minimums.",df['PAY_RATIO'].describe()),
-            ("AVG_PAY_STATUS","#F5A623","Average Repayment Delay","(PAY_0 + PAY_2 + ... + PAY_6) ÷ 6","Mean months of delay across all 6 months. Positive = consistently late.",df['AVG_PAY_STATUS'].describe()),
-            ("TOTAL_BILL","#BC8CFF","Total 6-Month Bill Exposure","Sum of BILL_AMT1 through BILL_AMT6","Captures cumulative debt load across the entire observation period.",df['TOTAL_BILL'].describe()),
-            ("TOTAL_PAY","#3FB950","Total 6-Month Payments Made","Sum of PAY_AMT1 through PAY_AMT6","How much the customer actually sent to the bank over 6 months.",df['TOTAL_PAY'].describe()),
+            ("UTIL_RATE","#00D4AA","Credit Utilization Rate","BILL_AMT1 ÷ LIMIT_BAL",
+             "How much of the credit limit is being used. Values above 0.75 signal high stress.",df['UTIL_RATE'].describe()),
+            ("PAY_RATIO","#4DB8FF","Payment Coverage Ratio","TOTAL_PAY ÷ TOTAL_BILL",
+             "What fraction of total bill was actually paid back. Below 0.1 means barely making minimums.",df['PAY_RATIO'].describe()),
+            ("AVG_PAY_STATUS","#F5A623","Average Repayment Delay","(PAY_0 + PAY_2 + ... + PAY_6) ÷ 6",
+             "Mean months of delay across all 6 months. Positive = consistently late.",df['AVG_PAY_STATUS'].describe()),
+            ("TOTAL_BILL","#BC8CFF","Total 6-Month Bill Exposure","Sum of BILL_AMT1 through BILL_AMT6",
+             "Captures cumulative debt load across the entire observation period.",df['TOTAL_BILL'].describe()),
+            ("TOTAL_PAY","#3FB950","Total 6-Month Payments Made","Sum of PAY_AMT1 through PAY_AMT6",
+             "How much the customer actually sent to the bank over 6 months.",df['TOTAL_PAY'].describe()),
         ]
         for feat, color, name, formula, desc, stats in features:
             with st.expander(f"**{feat}** — {name}", expanded=False):
@@ -1028,7 +1330,7 @@ elif page == "⚙️  Feature Engineering":
                     st.plotly_chart(fig, use_container_width=True)
 
     with fe_tabs[1]:
-        st.markdown("<div class='section-title'>Feature Correlation with Default</div>", unsafe_allow_html=True)
+        st.markdown("<div class='section-title'>Feature Correlation with Default (All Features)</div>", unsafe_allow_html=True)
         fc = ['LIMIT_BAL','AGE','PAY_0','PAY_2','PAY_3','PAY_4','PAY_5','PAY_6',
               'BILL_AMT1','PAY_AMT1','UTIL_RATE','PAY_RATIO','AVG_PAY_STATUS','TOTAL_BILL','TOTAL_PAY']
         corr = df[fc+['DEFAULT']].corr()['DEFAULT'].drop('DEFAULT').sort_values(key=abs,ascending=False)
@@ -1038,16 +1340,21 @@ elif page == "⚙️  Feature Engineering":
         fig.update_layout(**PT,height=380,yaxis_title='Correlation with DEFAULT',
             xaxis_tickangle=-30,margin=dict(t=20,b=80,l=10,r=10))
         st.plotly_chart(fig,use_container_width=True)
-        st.markdown("<div class='insight'><b>AVG_PAY_STATUS</b> and <b>PAY_0</b> are the strongest predictors.</div>", unsafe_allow_html=True)
+        st.markdown("<div class='insight'><b>AVG_PAY_STATUS</b> and <b>PAY_0</b> are the strongest predictors. UTIL_RATE and PAY_RATIO add signal beyond the raw columns by normalizing relative to limit and total exposure.</div>", unsafe_allow_html=True)
 
     with fe_tabs[2]:
         st.markdown("<div class='section-title'>Preprocessing Pipeline</div>", unsafe_allow_html=True)
         for step, label, desc, formula in [
-            ("1","Drop ID","Remove the customer ID column — carries zero predictive signal.","X = df.drop(columns=['ID', 'DEFAULT', label_cols...])"),
-            ("2","Encode Categoricals","SEX, EDUCATION, and MARRIAGE are already numeric — kept as-is.","No transformation needed — already numeric"),
-            ("3","Feature Scaling","Apply StandardScaler for Logistic Regression. Tree-based models do NOT need scaling.","X_scaled = (X - mean) ÷ std_deviation"),
-            ("4","Handle Class Imbalance","Use SMOTE on the training set to balance classes to 50/50.","SMOTE: x_new = xi + λ × (xj − xi)   where λ ~ Uniform(0,1)"),
-            ("5","Train / Test Split (80/20)","Reserve 20% (6,000 rows) as test set. Stratified split preserves the 22% default rate.","X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, stratify=y)"),
+            ("1","Drop ID","Remove the customer ID column — it is just a row number and carries zero predictive signal.",
+             "X = df.drop(columns=['ID', 'DEFAULT', label_cols...])"),
+            ("2","Encode Categoricals","SEX, EDUCATION, and MARRIAGE are already numeric (1,2,3...) in the raw data. We keep them as-is since the model can interpret ordinal relationships.",
+             "No transformation needed — already numeric"),
+            ("3","Feature Scaling","Logistic Regression is sensitive to scale — a column ranging 0–1,000,000 will dominate columns ranging 0–1. We apply StandardScaler. Tree-based models do NOT need scaling.",
+             "X_scaled = (X - mean) ÷ std_deviation"),
+            ("4","Handle Class Imbalance","With 78% non-defaulters, models are biased toward predicting 'no default'. We use SMOTE on the training set to balance classes to 50/50.",
+             "SMOTE: x_new = xi + λ × (xj − xi)   where λ ~ Uniform(0,1)"),
+            ("5","Train / Test Split (80/20)","We reserve 20% of data (6,000 rows) as a test set the model never sees during training. Stratified split preserves the 22% default rate in both halves.",
+             "X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, stratify=y)"),
         ]:
             st.markdown(
                 "<div class='card'>"
@@ -1058,12 +1365,12 @@ elif page == "⚙️  Feature Engineering":
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# PAGE 4 — MODEL BUILDING
+# PAGE 4 — MODEL BUILDING (loads PKL, inspect any model)
 # ══════════════════════════════════════════════════════════════════════════════
 elif page == "🤖  Model Building":
     st.markdown("<div class='hero-title' style='font-size:38px'>Model Building</div>", unsafe_allow_html=True)
-    st.markdown("<div class='hero-sub'>All models are pre-trained — loaded instantly from PKL files</div>", unsafe_allow_html=True)
-    st.markdown("<div class='insight'>Models were trained offline using <code>model_train.py</code> with SMOTE balancing and GridSearchCV.</div>", unsafe_allow_html=True)
+    st.markdown("<div class='hero-sub'>All models are pre-trained with SMOTE + hyperparameter tuning — loaded instantly from PKL files</div>", unsafe_allow_html=True)
+    st.markdown("<div class='insight'>Models were trained offline using <code>model_train.py</code> with SMOTE balancing and GridSearchCV. Select any model below to inspect its performance and feature importance.</div>", unsafe_allow_html=True)
 
     col1,col2 = st.columns([1,2])
     with col1:
@@ -1089,8 +1396,11 @@ elif page == "🤖  Model Building":
 
     with col2:
         if r:
+            # Calculate metrics from confusion matrix if report is missing
             rep = r.get('report', {})
             cm = np.array(r.get('cm', [[0,0],[0,0]]))
+            
+            # Get metrics from report if available, otherwise calculate from confusion matrix
             if rep and '1' in rep:
                 precision = rep.get('1', {}).get('precision', 0)
                 recall = rep.get('1', {}).get('recall', 0)
@@ -1102,7 +1412,7 @@ elif page == "🤖  Model Building":
                 f1_score = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
             else:
                 precision = recall = f1_score = 0
-
+            
             c1,c2,c3,c4 = st.columns(4)
             with c1: st.metric("AUC-ROC",f"{r.get('auc',0):.4f}")
             with c2: st.metric("Precision",f"{precision:.3f}")
@@ -1136,10 +1446,10 @@ elif page == "🤖  Model Building":
                     tn,fp,fn,tp = cm.ravel()
                     st.markdown(f"""
                     <div style='display:flex;gap:10px;flex-wrap:wrap;margin-top:8px'>
-                        <span class='pill pill-teal'>✓ True Negatives: {tn:,}</span>
-                        <span class='pill pill-teal'>✓ True Positives: {tp:,}</span>
-                        <span class='pill pill-orange'>✗ False Positives: {fp:,}</span>
-                        <span class='pill pill-red'>✗ False Negatives: {fn:,}</span>
+                        <span class='pill pill-teal'>✓ True Negatives (Correctly safe): {tn:,}</span>
+                        <span class='pill pill-teal'>✓ True Positives (Caught defaulters): {tp:,}</span>
+                        <span class='pill pill-orange'>✗ False Positives (False alarms): {fp:,}</span>
+                        <span class='pill pill-red'>✗ False Negatives (Missed defaulters): {fn:,}</span>
                     </div>""", unsafe_allow_html=True)
 
             with t3:
@@ -1173,14 +1483,19 @@ elif page == "📈  Model Comparison":
         st.error("No results found. Run model_train.py first.")
         st.stop()
 
+    # Leaderboard - use comparison_table.csv if available, otherwise calculate from results_json
     st.markdown("<div class='section-title'>🏆 Model Leaderboard</div>", unsafe_allow_html=True)
-
+    
     if comp_df is not None:
+        # Use comparison_table.csv data
         ldf = comp_df.copy()
         ldf = ldf.sort_values('AUC', ascending=False)
+        
+        # Add caught defaulters column from confusion matrices
         rows_with_caught = []
         for _, row in ldf.iterrows():
             model_name = row['Model']
+            # Find matching model in results_json
             if model_name in results_json:
                 cm = np.array(results_json[model_name].get('cm', [[0,0],[0,0]]))
                 if cm.size == 4:
@@ -1194,90 +1509,176 @@ elif page == "📈  Model Comparison":
                 row['Caught Defaulters'] = "N/A"
                 row['False Alarms'] = "N/A"
             rows_with_caught.append(row)
+        
         ldf = pd.DataFrame(rows_with_caught)
+        
+        # Display table with formatted columns
         display_cols = ['Model', 'AUC', 'F1 Score', 'Precision', 'Recall', 'Test Accuracy', 'Caught Defaulters', 'False Alarms']
         st.dataframe(ldf[display_cols], use_container_width=True, hide_index=True)
+        
     else:
+        # Fallback: calculate from results_json
         rows = []
         for name, r in results_json.items():
             cm = np.array(r.get('cm', [[0,0],[0,0]]))
             tn, fp, fn, tp = cm.ravel() if cm.size == 4 else (0, 0, 0, 0)
+            
+            # Calculate precision and recall from confusion matrix
             precision = tp / (tp + fp) if (tp + fp) > 0 else 0
             recall = tp / (tp + fn) if (tp + fn) > 0 else 0
             f1 = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
             accuracy = (tp + tn) / (tp + tn + fp + fn) if (tp + tn + fp + fn) > 0 else 0
-            rows.append({'Model': name,'AUC-ROC': round(r.get('auc', 0), 4),'Precision': round(precision, 3),
-                'Recall': round(recall, 3),'F1 Score': round(f1, 3),'Accuracy': round(accuracy, 3),
-                'Caught Defaulters': f"{tp:,} / {tp+fn:,}",'False Alarms': f"{fp:,}"})
+            
+            rows.append({
+                'Model': name,
+                'AUC-ROC': round(r.get('auc', 0), 4),
+                'Precision': round(precision, 3),
+                'Recall': round(recall, 3),
+                'F1 Score': round(f1, 3),
+                'Accuracy': round(accuracy, 3),
+                'Caught Defaulters': f"{tp:,} / {tp+fn:,}",
+                'False Alarms': f"{fp:,}"
+            })
         ldf = pd.DataFrame(rows).sort_values('AUC-ROC', ascending=False)
         st.dataframe(ldf, use_container_width=True, hide_index=True)
-
+    
     best = ldf.iloc[0]['Model']
     best_auc = ldf.iloc[0]['AUC'] if 'AUC' in ldf.columns else ldf.iloc[0]['AUC-ROC']
-    st.markdown(f"<div class='insight'>🏆 <b>{best}</b> achieves the highest AUC of {best_auc:.4f}.</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='insight'>🏆 <b>{best}</b> achieves the highest AUC score of {best_auc:.4f}, making it the best overall discriminator between defaulters and non-defaulters. AUC is our primary metric because it measures ranking quality independent of threshold — crucial for credit scoring.</div>", unsafe_allow_html=True)
 
     comp_tabs = st.tabs(["📈 ROC Curves","📉 Precision-Recall","🔢 Confusion Matrices","🎯 Feature Importance"])
 
     with comp_tabs[0]:
+        st.markdown("<div class='section-sub'>ROC curves show the trade-off between True Positive Rate and False Positive Rate</div>", unsafe_allow_html=True)
+        
+        # Check if we have fpr/tpr data in results_json
         has_roc_data = any('fpr' in r and 'tpr' in r for r in results_json.values())
+        
         if has_roc_data:
             fig = go.Figure()
             for i, (name, r) in enumerate(results_json.items()):
                 if 'fpr' in r and 'tpr' in r:
-                    fig.add_trace(go.Scatter(x=L(r.get('fpr',[])),y=L(r.get('tpr',[])),
-                        name=f"{name} (AUC={r.get('auc',0):.4f})",
-                        line=dict(color=COLORS_MODEL[i%4],width=2.5)))
-            fig.add_trace(go.Scatter(x=[0,1],y=[0,1],line=dict(color='#A8B4C0',dash='dash'),name='Random'))
-            fig.update_layout(**PT,height=450,xaxis_title='False Positive Rate',yaxis_title='True Positive Rate',
-                title='ROC Curves — All Models',margin=dict(t=40,b=20,l=20,r=20))
-            st.plotly_chart(fig,use_container_width=True)
+                    fig.add_trace(go.Scatter(
+                        x=L(r.get('fpr', [])),
+                        y=L(r.get('tpr', [])),
+                        name=f"{name} (AUC={r.get('auc', 0):.4f})",
+                        line=dict(color=COLORS_MODEL[i % 4], width=2.5)
+                    ))
+            fig.add_trace(go.Scatter(
+                x=[0, 1], y=[0, 1],
+                line=dict(color='#A8B4C0', dash='dash'),
+                name='Random Classifier'
+            ))
+            fig.update_layout(
+                **PT, height=450,
+                xaxis_title='False Positive Rate',
+                yaxis_title='True Positive Rate',
+                title='ROC Curves — All Models',
+                margin=dict(t=40, b=20, l=20, r=20)
+            )
+            st.plotly_chart(fig, use_container_width=True)
+            st.markdown("<div class='insight'>The ROC curve shows how well each model trades off catching defaulters (True Positive Rate) against false alarms (False Positive Rate). A curve closer to the top-left corner is better. The diagonal line represents a model no better than random chance.</div>", unsafe_allow_html=True)
         else:
-            st.warning("⚠️ ROC curve data not found in results_summary.json.")
+            st.warning("⚠️ ROC curve data (fpr/tpr) not found in results_summary.json. Please regenerate models with ROC curve data.")
+            st.info("💡 To fix this, update your model training script to save fpr and tpr values from sklearn.metrics.roc_curve()")
 
     with comp_tabs[1]:
+        st.markdown("<div class='section-sub'>Precision-Recall curves are more informative for imbalanced datasets</div>", unsafe_allow_html=True)
+        
+        # Check if we have precision/recall curve data
         has_pr_data = any('rec' in r and 'prec' in r for r in results_json.values())
+        
         if has_pr_data:
             fig = go.Figure()
             for i, (name, r) in enumerate(results_json.items()):
                 if 'rec' in r and 'prec' in r:
-                    fig.add_trace(go.Scatter(x=L(r.get('rec',[])),y=L(r.get('prec',[])),
-                        name=name,line=dict(color=COLORS_MODEL[i%4],width=2.5)))
-            fig.update_layout(**PT,height=450,xaxis_title='Recall',yaxis_title='Precision',
-                title='Precision-Recall Curves',margin=dict(t=40,b=20,l=20,r=20))
-            st.plotly_chart(fig,use_container_width=True)
+                    fig.add_trace(go.Scatter(
+                        x=L(r.get('rec', [])),
+                        y=L(r.get('prec', [])),
+                        name=name,
+                        line=dict(color=COLORS_MODEL[i % 4], width=2.5),
+                        fill='tozeroy' if i == 0 else None,
+                        fillcolor='rgba(0,212,170,0.05)' if i == 0 else None
+                    ))
+            fig.update_layout(
+                **PT, height=450,
+                xaxis_title='Recall (% of defaulters caught)',
+                yaxis_title='Precision (% of predictions correct)',
+                title='Precision-Recall Curves — All Models',
+                margin=dict(t=40, b=20, l=20, r=20)
+            )
+            st.plotly_chart(fig, use_container_width=True)
+            st.markdown("<div class='insight'>The precision-recall curve is more informative than ROC for imbalanced datasets. A bank wants high recall (catch most defaulters) but not at the cost of too many false alarms.</div>", unsafe_allow_html=True)
         else:
-            st.warning("⚠️ Precision-Recall curve data not found in results_summary.json.")
+            st.warning("⚠️ Precision-Recall curve data not found in results_summary.json. Please regenerate models with precision-recall curve data.")
+            st.info("💡 To fix this, update your model training script to save precision and recall arrays from sklearn.metrics.precision_recall_curve()")
 
     with comp_tabs[2]:
+        st.markdown("<div class='section-sub'>Confusion matrices show the breakdown of predictions vs actual outcomes</div>", unsafe_allow_html=True)
+        
+        # Display confusion matrices for all models
         num_models = len(results_json)
         cols_per_row = 3
+        
         for i in range(0, num_models, cols_per_row):
             cols = st.columns(min(cols_per_row, num_models - i))
             for col, (name, r) in zip(cols, list(results_json.items())[i:i+cols_per_row]):
                 with col:
                     cm = np.array(r.get('cm', [[0,0],[0,0]]))
                     labels = ['Safe', 'Default']
-                    fig = px.imshow([[int(v) for v in row] for row in cm],text_auto=True,x=labels,y=labels,
-                        color_continuous_scale=[[0,'#1C2330'],[1,'#00D4AA']],labels=dict(x='Predicted',y='Actual'))
-                    fig.update_layout(**PT,height=280,title=name,coloraxis_showscale=False,margin=dict(t=40,b=10,l=10,r=10))
-                    st.plotly_chart(fig,use_container_width=True)
+                    fig = px.imshow(
+                        [[int(v) for v in row] for row in cm],
+                        text_auto=True,
+                        x=labels,
+                        y=labels,
+                        color_continuous_scale=[[0,'#1C2330'],[1,'#00D4AA']],
+                        labels=dict(x='Predicted', y='Actual')
+                    )
+                    fig.update_layout(
+                        **PT, height=280,
+                        title=name,
+                        coloraxis_showscale=False,
+                        margin=dict(t=40, b=10, l=10, r=10)
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
                     if cm.size == 4:
                         tn, fp, fn, tp = cm.ravel()
-                        st.markdown(f"<div style='font-size:11px;color:#A8B4C0;line-height:2'>Caught: <b style='color:#00D4AA'>{tp:,}</b><br>Missed: <b style='color:#FF4D4F'>{fn:,}</b><br>False alarms: <b style='color:#F0883E'>{fp:,}</b></div>", unsafe_allow_html=True)
+                        st.markdown(f"""
+                        <div style='font-size:11px;color:#A8B4C0;line-height:2'>
+                        Caught: <b style='color:#00D4AA'>{tp:,}</b> defaulters<br>
+                        Missed: <b style='color:#FF4D4F'>{fn:,}</b> defaulters<br>
+                        False alarms: <b style='color:#F0883E'>{fp:,}</b>
+                        </div>""", unsafe_allow_html=True)
 
     with comp_tabs[3]:
-        model_sel = st.selectbox("Select model:", list(results_json.keys()))
+        st.markdown("<div class='section-sub'>Feature importance shows which variables drive predictions</div>", unsafe_allow_html=True)
+        
+        model_sel = st.selectbox("Select model to view feature importance:", list(results_json.keys()))
         fi = results_json[model_sel].get('feature_importances', {})
+        
         if fi:
             top15 = pd.Series(fi).sort_values(ascending=False).head(15)
-            fig = go.Figure(go.Bar(x=L(top15.values),y=L(top15.index),orientation='h',
-                marker=dict(color=L(top15.values),colorscale=[[0,'#1A3C5E'],[0.5,'#4DB8FF'],[1,'#00D4AA']]),
-                text=[f'{v:.4f}' for v in L(top15.values)],textposition='outside'))
-            fig.update_layout(**PT,height=420,title=f'Feature Importance — {model_sel}',
-                xaxis_title='Importance',margin=dict(t=40,b=20,l=20,r=60))
-            st.plotly_chart(fig,use_container_width=True)
+            fig = go.Figure(go.Bar(
+                x=L(top15.values),
+                y=L(top15.index),
+                orientation='h',
+                marker=dict(
+                    color=L(top15.values),
+                    colorscale=[[0,'#1A3C5E'],[0.5,'#4DB8FF'],[1,'#00D4AA']]
+                ),
+                text=[f'{v:.4f}' for v in L(top15.values)],
+                textposition='outside'
+            ))
+            fig.update_layout(
+                **PT, height=420,
+                title=f'Feature Importance — {model_sel}',
+                xaxis_title='Importance',
+                margin=dict(t=40, b=20, l=20, r=60)
+            )
+            st.plotly_chart(fig, use_container_width=True)
         else:
-            st.warning(f"⚠️ Feature importance not available for {model_sel}")
+            st.warning(f"⚠️ Feature importance data not available for {model_sel}")
+            st.info("💡 Feature importance is typically available for tree-based models (Random Forest, Gradient Boosting, XGBoost)")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1285,20 +1686,33 @@ elif page == "📈  Model Comparison":
 # ══════════════════════════════════════════════════════════════════════════════
 elif page == "🎯  Live Predictor":
     st.markdown("<div class='hero-title' style='font-size:38px'>Live Default Predictor</div>", unsafe_allow_html=True)
-    st.markdown("<div class='hero-sub'>Enter a customer's details and get an instant default risk assessment</div>", unsafe_allow_html=True)
+    st.markdown("<div class='hero-sub'>Enter a customer's details and get an instant default risk assessment with full explanation</div>", unsafe_allow_html=True)
 
+    # Model selector
     pred_model_name = st.selectbox("Choose model for prediction:", list(pkls.keys()))
     pkg = pkls[pred_model_name]
+    
+    # Extract model components from the dictionary
+    # Models are saved as {'model': ..., 'scaler': ..., 'features': ..., 'scaled': ...}
     pred_model = pkg.get('model')
     pred_scaler = pkg.get('scaler')
     feature_cols = pkg.get('features', [])
     use_scaled = pkg.get('scaled', False)
-
+    
     if pred_model is None:
-        if '_load_error' in pkg and '_expected_sklearn_version' in pkg:
-            display_version_mismatch_guidance(pkg['_expected_sklearn_version'], pkg['_current_sklearn_version'])
+        # Check if this is a version mismatch error with version information
+        if '_load_error' in pkg and '_expected_sklearn_version' in pkg and '_current_sklearn_version' in pkg:
+            expected_version = pkg['_expected_sklearn_version']
+            current_version = pkg['_current_sklearn_version']
+            
+            st.error(f"⚠️ Model requires sklearn {expected_version} but you have {current_version} installed")
+            
+            # Display resolution guidance
+            display_version_mismatch_guidance(expected_version, current_version)
         else:
-            st.error(f"⚠️ Model '{pred_model_name}' could not be loaded.")
+            # Generic error for other loading failures
+            st.error(f"⚠️ Model '{pred_model_name}' could not be loaded properly. Please check the model file.")
+        
         st.stop()
 
     st.markdown("<div class='section-title'>Customer Profile</div>", unsafe_allow_html=True)
@@ -1313,7 +1727,7 @@ elif page == "🎯  Live Predictor":
         marriage   = st.selectbox("Marital Status",[1,2,3],format_func=lambda x:{1:'Married',2:'Single',3:'Others'}[x])
 
     with col2:
-        st.markdown("<div class='label-sm'>Repayment History (-1=on time, 0=revolving)</div>", unsafe_allow_html=True)
+        st.markdown("<div class='label-sm'>Repayment History (months of delay; -1=on time, 0=revolving)</div>", unsafe_allow_html=True)
         pay_0 = st.slider("September (PAY_0)",-2,8,0)
         pay_2 = st.slider("August (PAY_2)",-2,8,0)
         pay_3 = st.slider("July (PAY_3)",-2,8,0)
@@ -1322,32 +1736,60 @@ elif page == "🎯  Live Predictor":
         pay_6 = st.slider("April (PAY_6)",-2,8,0)
 
     with col3:
-        st.markdown("<div class='label-sm'>Bill Amounts (NT$)</div>", unsafe_allow_html=True)
-        bill1  = st.number_input("Bill Sep",0,1000000,20000,step=1000)
-        bill2  = st.number_input("Bill Aug",0,1000000,19000,step=1000)
-        bill3  = st.number_input("Bill Jul",0,1000000,18000,step=1000)
-        bill4  = st.number_input("Bill Jun",0,1000000,17000,step=1000)
-        bill5  = st.number_input("Bill May",0,1000000,16000,step=1000)
-        bill6  = st.number_input("Bill Apr",0,1000000,15000,step=1000)
-        st.markdown("<div class='label-sm' style='margin-top:16px'>Payment Amounts (NT$)</div>", unsafe_allow_html=True)
-        pay_a1 = st.number_input("Payment Sep",0,500000,2000,step=500)
-        pay_a2 = st.number_input("Payment Aug",0,500000,2000,step=500)
-        pay_a3 = st.number_input("Payment Jul",0,500000,2000,step=500)
-        pay_a4 = st.number_input("Payment Jun",0,500000,2000,step=500)
-        pay_a5 = st.number_input("Payment May",0,500000,2000,step=500)
-        pay_a6 = st.number_input("Payment Apr",0,500000,2000,step=500)
+        st.markdown("<div class='label-sm'>Bill Amounts (NT$) - Last 6 Months</div>", unsafe_allow_html=True)
+        bill1  = st.number_input("Bill Sep (BILL_AMT1)", 0, 1000000, 20000, step=1000)
+        bill2  = st.number_input("Bill Aug (BILL_AMT2)", 0, 1000000, 19000, step=1000)
+        bill3  = st.number_input("Bill Jul (BILL_AMT3)", 0, 1000000, 18000, step=1000)
+        bill4  = st.number_input("Bill Jun (BILL_AMT4)", 0, 1000000, 17000, step=1000)
+        bill5  = st.number_input("Bill May (BILL_AMT5)", 0, 1000000, 16000, step=1000)
+        bill6  = st.number_input("Bill Apr (BILL_AMT6)", 0, 1000000, 15000, step=1000)
+        
+        st.markdown("<div class='label-sm' style='margin-top:16px'>Payment Amounts (NT$) - Last 6 Months</div>", unsafe_allow_html=True)
+        pay_a1 = st.number_input("Payment Sep (PAY_AMT1)", 0, 500000, 2000, step=500)
+        pay_a2 = st.number_input("Payment Aug (PAY_AMT2)", 0, 500000, 2000, step=500)
+        pay_a3 = st.number_input("Payment Jul (PAY_AMT3)", 0, 500000, 2000, step=500)
+        pay_a4 = st.number_input("Payment Jun (PAY_AMT4)", 0, 500000, 2000, step=500)
+        pay_a5 = st.number_input("Payment May (PAY_AMT5)", 0, 500000, 2000, step=500)
+        pay_a6 = st.number_input("Payment Apr (PAY_AMT6)", 0, 500000, 2000, step=500)
 
     if st.button("⚡ Predict Default Risk"):
-        util_rate = max(-1, min(2, (bill1 / limit_bal) if limit_bal > 0 else 0))
+        # Calculate ALL engineered features exactly as in the notebook
+        
+        # UTIL_RATE: BILL_AMT1 / LIMIT_BAL, clipped to [-1, 2]
+        util_rate = (bill1 / limit_bal) if limit_bal > 0 else 0
+        util_rate = max(-1, min(2, util_rate))
+        
+        # AVG_PAY_STATUS: mean of all PAY_* columns
         avg_pay = np.mean([pay_0, pay_2, pay_3, pay_4, pay_5, pay_6])
-        total_bill = bill1+bill2+bill3+bill4+bill5+bill6
-        total_pay = pay_a1+pay_a2+pay_a3+pay_a4+pay_a5+pay_a6
-        pay_ratio = max(-2, min(5, (total_pay / total_bill) if total_bill > 0 else 0))
-        bill_trend = bill1 - bill6
-        pay_trend = pay_a1 - pay_a6
+        
+        # TOTAL_BILL: sum of all 6 BILL_AMT columns
+        total_bill = bill1 + bill2 + bill3 + bill4 + bill5 + bill6
+        
+        # TOTAL_PAY: sum of all 6 PAY_AMT columns
+        total_pay = pay_a1 + pay_a2 + pay_a3 + pay_a4 + pay_a5 + pay_a6
+        
+        # PAY_RATIO: TOTAL_PAY / TOTAL_BILL, clipped to [-2, 5]
+        pay_ratio = (total_pay / total_bill) if total_bill > 0 else 0
+        pay_ratio = max(-2, min(5, pay_ratio))
+        
+        # BILL_TREND: BILL_AMT1 - BILL_AMT6
+        bill_trend = bill1 - bill6  # Using actual bill6
+        
+        # PAY_TREND: PAY_AMT1 - PAY_AMT6
+        pay_trend = pay_a1 - pay_a6  # Using actual pay_a6
+        
+        # MAX_PAY_DELAY: maximum of all PAY_* columns
         max_pay_delay = max([pay_0, pay_2, pay_3, pay_4, pay_5, pay_6])
+        
+        # CONSEC_LATE: count of PAY_* columns > 0
         consec_late = sum([1 for p in [pay_0, pay_2, pay_3, pay_4, pay_5, pay_6] if p > 0])
+        
+        # CREDIT_USAGE_RATIO: Similar to UTIL_RATE but different calculation
+        credit_usage_ratio = util_rate  # Simplified - same as UTIL_RATE
 
+        # Build input DataFrame with ALL known features.
+        # We then slice to exactly the columns the loaded model was trained on
+        # (stored in feature_cols from the bundle) so no extra/missing column errors occur.
         _all_input_data = {
             'LIMIT_BAL': limit_bal, 'GENDER': sex, 'EDUCATION': education,
             'MARRIAGE': marriage, 'AGE': age,
@@ -1361,31 +1803,57 @@ elif page == "🎯  Live Predictor":
             'AVG_PAY_STATUS': avg_pay, 'TOTAL_BILL': total_bill,
             'TOTAL_PAY': total_pay, 'BILL_TREND': bill_trend,
             'PAY_TREND': pay_trend, 'MAX_PAY_DELAY': max_pay_delay,
-            'CONSEC_LATE': consec_late, 'CREDIT_USAGE_RATIO': util_rate,
+            'CONSEC_LATE': consec_late, 'CREDIT_USAGE_RATIO': credit_usage_ratio,
         }
+        # Use the model's stored feature list if available; otherwise fall back to
+        # the 31-column training set (excludes CREDIT_USAGE_RATIO).
         _default_features = [
-            'LIMIT_BAL','GENDER','EDUCATION','MARRIAGE','AGE',
-            'PAY_0','PAY_2','PAY_3','PAY_4','PAY_5','PAY_6',
-            'BILL_AMT1','BILL_AMT2','BILL_AMT3','BILL_AMT4','BILL_AMT5','BILL_AMT6',
-            'PAY_AMT1','PAY_AMT2','PAY_AMT3','PAY_AMT4','PAY_AMT5','PAY_AMT6',
-            'UTIL_RATE','PAY_RATIO','AVG_PAY_STATUS','TOTAL_BILL','TOTAL_PAY',
-            'BILL_TREND','PAY_TREND','MAX_PAY_DELAY','CONSEC_LATE',
+            'LIMIT_BAL', 'GENDER', 'EDUCATION', 'MARRIAGE', 'AGE',
+            'PAY_0', 'PAY_2', 'PAY_3', 'PAY_4', 'PAY_5', 'PAY_6',
+            'BILL_AMT1', 'BILL_AMT2', 'BILL_AMT3', 'BILL_AMT4', 'BILL_AMT5', 'BILL_AMT6',
+            'PAY_AMT1', 'PAY_AMT2', 'PAY_AMT3', 'PAY_AMT4', 'PAY_AMT5', 'PAY_AMT6',
+            'UTIL_RATE', 'PAY_RATIO', 'AVG_PAY_STATUS', 'TOTAL_BILL', 'TOTAL_PAY',
+            'BILL_TREND', 'PAY_TREND', 'MAX_PAY_DELAY', 'CONSEC_LATE',
         ]
         _cols = feature_cols if feature_cols else _default_features
-        X_input = pd.DataFrame([[_all_input_data.get(c, 0) for c in _cols]], columns=_cols)
+        X_input = pd.DataFrame(
+            [[_all_input_data.get(c, 0) for c in _cols]],
+            columns=_cols
+        )
 
         try:
-            prob = pred_model.predict_proba(X_input)[0][1]
+            # The model IS a Pipeline that includes preprocessing
+            # For linear models: Pipeline([('prep', ColumnTransformer with PowerTransformer/OneHotEncoder), ('model', LogisticRegression)])
+            # For tree models: Pipeline([('prep', ColumnTransformer with OneHotEncoder), ('model', RandomForest/XGBoost)])
+            # So we just pass raw data and the pipeline handles:
+            # 1. OneHotEncoding of categorical variables (GENDER, EDUCATION, MARRIAGE)
+            # 2. PowerTransformer for BILL_AMT columns (linear models only)
+            # 3. Log1p for PAY_AMT columns (linear models only)
+            # 4. StandardScaler for other numeric columns (linear models only)
+
+            # Make prediction - the pipeline handles all preprocessing internally
+            try:
+                prob = pred_model.predict_proba(X_input)[0][1]
+            except AttributeError as attr_err:
+                # Handle sklearn version mismatch issues
+                if 'multi_class' in str(attr_err) or 'LogisticRegression' in str(attr_err):
+                    st.error("⚠️ Model version incompatibility detected. Please retrain models:")
+                    st.code("python model_train.py")
+                    st.info("This fixes sklearn/xgboost version mismatches in pickled models.")
+                    st.stop()
+                else:
+                    raise
+
             pct  = prob * 100
 
             if pct < 15:
-                tier,color,icon,verdict = "LOW RISK","#00D4AA","✅","This customer profile is unlikely to default."
+                tier,color,icon,verdict = "LOW RISK","#00D4AA","✅","This customer profile is unlikely to default. The bank can confidently extend or maintain credit."
             elif pct < 35:
-                tier,color,icon,verdict = "MODERATE RISK","#F0883E","⚠️","Some risk signals present. Monitor closely."
+                tier,color,icon,verdict = "MODERATE RISK","#F0883E","⚠️","This customer shows some risk signals. The bank should monitor closely and may consider limit restrictions."
             elif pct < 60:
-                tier,color,icon,verdict = "HIGH RISK","#FF7B72","🚨","Significant default risk. Consider early intervention."
+                tier,color,icon,verdict = "HIGH RISK","#FF7B72","🚨","Significant default risk. The bank should initiate outreach, reduce limit, and begin early intervention."
             else:
-                tier,color,icon,verdict = "CRITICAL RISK","#FF4D4F","🔴","Very high probability of default. Immediate action required."
+                tier,color,icon,verdict = "CRITICAL RISK","#FF4D4F","🔴","Very high probability of default. Immediate action required — collections outreach, account freeze, or settlement offer."
 
             st.markdown(f"""
             <div style='background:rgba(22,27,34,0.9);border:2px solid {color};border-radius:20px;
@@ -1395,10 +1863,12 @@ elif page == "🎯  Live Predictor":
                 <div style='font-size:64px;font-weight:700;color:{color};font-family:Inter;line-height:1'>{pct:.1f}%</div>
                 <div style='font-size:14px;color:#A8B4C0;margin-top:8px'>Probability of Default Next Month</div>
                 <div style='font-size:13px;color:#B0BAC6;margin-top:8px'>Model: {pred_model_name}</div>
-                <div style='font-size:14px;color:#B0BAC6;margin-top:20px;max-width:600px;margin-left:auto;margin-right:auto;line-height:1.7'>{verdict}</div>
+                <div style='font-size:14px;color:#B0BAC6;margin-top:20px;max-width:600px;margin-left:auto;margin-right:auto;line-height:1.7'>
+                    {verdict}
+                </div>
             </div>""", unsafe_allow_html=True)
 
-            st.markdown("<div class='section-title'>Factor Analysis</div>", unsafe_allow_html=True)
+            st.markdown("<div class='section-title'>Why this prediction? — Factor Analysis</div>", unsafe_allow_html=True)
             for fname,risk_val,display,level,fcolor in [
                 ("Credit Utilization",util_rate*100,f"{util_rate*100:.1f}%",
                  "HIGH" if util_rate>0.75 else "MODERATE" if util_rate>0.3 else "LOW",
@@ -1407,13 +1877,16 @@ elif page == "🎯  Live Predictor":
                  f"{pay_0} months delay" if pay_0>0 else "On time ✓",
                  "HIGH" if pay_0>2 else "MODERATE" if pay_0>0 else "LOW",
                  "#FF4D4F" if pay_0>2 else "#F0883E" if pay_0>0 else "#00D4AA"),
-                ("Avg Payment Delay",max(0,avg_pay)/8*100,f"{avg_pay:.1f} avg months late",
+                ("Avg Payment Delay (6 months)",max(0,avg_pay)/8*100,
+                 f"{avg_pay:.1f} avg months late",
                  "HIGH" if avg_pay>2 else "MODERATE" if avg_pay>0 else "LOW",
                  "#FF4D4F" if avg_pay>2 else "#F0883E" if avg_pay>0 else "#00D4AA"),
-                ("Payment Coverage",max(0,1-pay_ratio)*100,f"{pay_ratio:.1%} of bills paid",
+                ("Payment Coverage",max(0,1-pay_ratio)*100,
+                 f"{pay_ratio:.1%} of bills paid",
                  "HIGH" if pay_ratio<0.1 else "MODERATE" if pay_ratio<0.3 else "LOW",
                  "#FF4D4F" if pay_ratio<0.1 else "#F0883E" if pay_ratio<0.3 else "#00D4AA"),
-                ("Credit Limit",max(0,1-limit_bal/1000000)*100,f"NT${limit_bal:,}",
+                ("Credit Limit (Higher = safer)",max(0,1-limit_bal/1000000)*100,
+                 f"NT${limit_bal:,}",
                  "LOW" if limit_bal>200000 else "MODERATE" if limit_bal>80000 else "HIGH",
                  "#00D4AA" if limit_bal>200000 else "#F0883E" if limit_bal>80000 else "#FF4D4F"),
             ]:
@@ -1453,7 +1926,13 @@ elif page == "🎯  Live Predictor":
                 title=dict(text='Default Probability vs Dataset Average (22.1%)',font=dict(color='#A8B4C0',size=12)),
                 margin=dict(t=50,b=10,l=30,r=30))
             st.plotly_chart(fig_gauge,use_container_width=True)
+            st.markdown(f"""
+            <div class='insight'>
+            <b>How to read this:</b> The gauge shows this customer's estimated default probability ({pct:.1f}%)
+        compared to the dataset average of 22.1% (white line).
+        The delta ({pct-22.1:+.1f}%) tells you how much above or below average this customer is.
+        </div>""", unsafe_allow_html=True)
 
         except Exception as e:
             st.error(f"⚠️ Prediction failed: {str(e)}")
-            st.info("💡 Check that the model's expected features match the input provided.")
+            st.info("💡 This may be due to a mismatch between the model's expected features and the input provided. Please check the model file.")
