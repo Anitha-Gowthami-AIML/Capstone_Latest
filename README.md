@@ -12,7 +12,7 @@
 ## 🚀 Live Demo
 
 👉 **Try the app here:**  
-https://capstoneproject1-n5ckeazmkwjaclud7rz6xy.streamlit.app/
+https://capstonelatest-dvum2hrdtignwtie9yeyqz.streamlit.app/
 
 No installation required — fully deployed on Streamlit Cloud.
 
@@ -21,7 +21,7 @@ No installation required — fully deployed on Streamlit Cloud.
 ## 📂 GitHub Repository
 
 👉 **Source code:**  
-https://github.com/Anitha-Gowthami-AIML/Capstone_Project_1_CCD
+https://github.com/Anitha-Gowthami-AIML/Capstone_Latest
 
 ---
 
